@@ -1,25 +1,42 @@
 # Tzeva Adom - Home Assistant Integration
 
-A native Home Assistant custom integration for Israel's Oref (Pikud HaOref / פיקוד העורף) alert system. Provides real-time rocket alerts, hostile aircraft intrusions, earthquake warnings, and other civil defense alerts.
+[![HACS Validation](https://github.com/dn5qMDW3/tzevaadom/actions/workflows/hacs-validate.yml/badge.svg)](https://github.com/dn5qMDW3/tzevaadom/actions/workflows/hacs-validate.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/dn5qMDW3/tzevaadom?style=flat-square)](https://github.com/dn5qMDW3/tzevaadom/releases)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://hacs.xyz)
+
+[עברית](README.he.md)
+
+A native Home Assistant custom integration for Israel's civil defense alert system. Provides real-time rocket alerts, early warnings, hostile aircraft intrusions, earthquake warnings, and other civil defense alerts.
+
+## Data Sources
+
+| Source | Coverage | Notes |
+|--------|----------|-------|
+| **Tzofar** (tzevaadom.co.il) | Worldwide | No extra setup required. Recommended for users outside Israel. |
+| **Oref Direct** (oref.org.il) | Israel only | Direct connection to Pikud HaOref API. |
+| **Oref via Proxy** | Worldwide | Uses your own proxy server for Oref API access. |
 
 ## Features
 
-- **Real-time alerts** - Polls Oref API every 2 seconds (configurable)
-- **Area filtering** - Monitor specific districts or cities
-- **Category filtering** - Choose which alert types to track (rockets, drones, earthquakes, etc.)
-- **Alert counters** - Daily, weekly, monthly, and yearly alert counts with persistence
-- **Nationwide sensor** - Optional sensor for all alerts across Israel
-- **Event-driven** - Fires `tzevaadom_alert` events for automations
-- **Auto-updating definitions** - Area/district lists update automatically from Oref
-- **Bilingual** - Hebrew and English UI support
-- **HACS compatible** - Easy installation via HACS
+- **Real-time alerts** — Polls every 2-3 seconds (configurable)
+- **Early Warning sensor** — Separate binary sensor for early warning alerts (`התרעה מקדימה`)
+- **Event Ended detection** — Alert sensor resets immediately when Oref publishes "Event Ended"
+- **Area filtering** — Monitor specific districts or cities
+- **Category filtering** — Choose which alert types to track (rockets, drones, earthquakes, etc.)
+- **Alert counters** — Daily, weekly, monthly, and yearly alert counts with persistence across restarts
+- **Nationwide sensor** — Optional sensors for all alerts across Israel (unfiltered)
+- **Event-driven** — Fires `tzevaadom_alert` and `tzevaadom_early_warning` events for automations
+- **Auto-updating definitions** — Area/district/city lists update automatically
+- **Bilingual** — Full Hebrew and English UI support
+- **Diagnostics** — Built-in diagnostics for easy troubleshooting
+- **HACS compatible** — Easy installation via HACS
 
 ## Installation
 
 ### HACS (Recommended)
 
 1. Open HACS in Home Assistant
-2. Click the three dots menu → **Custom repositories**
+2. Click the three dots menu > **Custom repositories**
 3. Add `https://github.com/dn5qMDW3/tzevaadom` with category **Integration**
 4. Click **Install**
 5. Restart Home Assistant
@@ -31,13 +48,13 @@ A native Home Assistant custom integration for Israel's Oref (Pikud HaOref / פ�
 
 ## Configuration
 
-1. Go to **Settings** → **Devices & Services** → **Add Integration**
+1. Go to **Settings** > **Devices & Services** > **Add Integration**
 2. Search for **Tzeva Adom**
 3. Follow the setup wizard:
-   - **Connection**: Leave proxy URL empty for direct connection (Israel only)
-   - **Areas**: Select districts to monitor (or leave empty for all)
-   - **Categories**: Select alert types to monitor
-   - **Settings**: Configure poll interval and counter options
+   - **Data Source** — Choose between Tzofar (worldwide), Oref Direct (Israel), or Oref via Proxy
+   - **Location Filter** — Select districts and/or specific cities (leave empty for nationwide)
+   - **Categories** — Select alert types to monitor (leave empty for all)
+   - **Settings** — Configure poll interval, weekly reset day, and nationwide sensor
 
 ## Entities
 
@@ -45,20 +62,25 @@ A native Home Assistant custom integration for Israel's Oref (Pikud HaOref / פ�
 
 | Entity | Description |
 |--------|-------------|
-| `binary_sensor.tzevaadom_alert` | ON when an alert matches your area/category filters |
-| `binary_sensor.tzevaadom_alert_all` | ON when any alert is active nationwide |
+| `binary_sensor.tzeva_adom_alert` | ON when an alert matches your area/category filters |
+| `binary_sensor.tzeva_adom_alert_all` | ON when any alert is active nationwide (optional) |
+| `binary_sensor.tzeva_adom_early_warning` | ON when an early warning is active for your areas |
 
-**Attributes**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `alert_count`
+**Alert attributes**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `alert_count`
+
+**Early warning attributes**: `alert_count`, `cities`, `title`, `description`
 
 ### Sensors
 
 | Entity | Description |
 |--------|-------------|
-| `sensor.tzevaadom_daily_alert_count` | Alert count today (resets at midnight) |
-| `sensor.tzevaadom_weekly_alert_count` | Alert count this week (resets Sunday) |
-| `sensor.tzevaadom_monthly_alert_count` | Alert count this month |
-| `sensor.tzevaadom_yearly_alert_count` | Alert count this year |
-| `sensor.tzevaadom_last_alert` | Details of the most recent alert |
+| `sensor.tzeva_adom_daily_alert_count` | Alert count today (resets at midnight) |
+| `sensor.tzeva_adom_weekly_alert_count` | Alert count this week (configurable reset day) |
+| `sensor.tzeva_adom_monthly_alert_count` | Alert count this month |
+| `sensor.tzeva_adom_yearly_alert_count` | Alert count this year |
+| `sensor.tzeva_adom_last_alert` | Details of the most recent alert |
+
+Nationwide counter variants (`*_nationwide`) are available when the nationwide sensor is enabled.
 
 ## Services
 
@@ -69,7 +91,9 @@ A native Home Assistant custom integration for Israel's Oref (Pikud HaOref / פ�
 
 ## Events
 
-The integration fires `tzevaadom_alert` events for each new alert:
+### `tzevaadom_alert`
+
+Fired for each new alert matching your filters:
 
 ```yaml
 event_type: tzevaadom_alert
@@ -83,11 +107,28 @@ data:
     - "חולון"
 ```
 
-### Automation Example
+### `tzevaadom_early_warning`
+
+Fired when early warning alerts are detected for your areas:
+
+```yaml
+event_type: tzevaadom_early_warning
+data:
+  id: "133456790"
+  cat: 1
+  title: "התרעה מקדימה"
+  desc: "..."
+  cities:
+    - "אשדוד"
+```
+
+## Automation Examples
+
+### Alert Notification
 
 ```yaml
 automation:
-  - alias: "Alert notification"
+  - alias: "Red Alert Notification"
     trigger:
       - platform: event
         event_type: tzevaadom_alert
@@ -96,6 +137,39 @@ automation:
         data:
           title: "{{ trigger.event.data.title }}"
           message: "Areas: {{ trigger.event.data.cities | join(', ') }}"
+```
+
+### Early Warning — Prepare Shelter
+
+```yaml
+automation:
+  - alias: "Early Warning - Prepare"
+    trigger:
+      - platform: event
+        event_type: tzevaadom_early_warning
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Early Warning"
+          message: "Prepare shelter: {{ trigger.event.data.cities | join(', ') }}"
+```
+
+### Flash Lights on Alert
+
+```yaml
+automation:
+  - alias: "Flash lights on alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.tzeva_adom_alert
+        to: "on"
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: light.living_room
+        data:
+          color_name: red
+          brightness: 255
 ```
 
 ## Alert Categories
@@ -112,13 +186,13 @@ automation:
 | 8-13 | תרגילים | Drills (various types) |
 | 14 | הודעה מיוחדת | Special Announcement |
 
-## API Access
-
-The Oref API is officially accessible only from within Israel. If you need access from outside Israel, you can configure a proxy URL in the integration settings.
-
 ## Multiple Instances
 
-You can add the integration multiple times with different area/category filters to create separate monitoring groups.
+You can add the integration multiple times with different area/category filters to create separate monitoring groups (e.g., home vs. office).
+
+## Diagnostics
+
+For troubleshooting, go to **Settings** > **Devices & Services** > **Tzeva Adom** > **3 dots menu** > **Download diagnostics**. Sensitive data (proxy URLs) is automatically redacted.
 
 ## License
 
