@@ -19,6 +19,7 @@ OREF_HEADERS = {
 
 # Config keys
 CONF_AREAS = "areas"
+CONF_CITIES = "cities"
 CONF_CATEGORIES = "categories"
 CONF_POLL_INTERVAL = "poll_interval"
 CONF_WEEKLY_RESET_DAY = "weekly_reset_day"

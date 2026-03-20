@@ -15,6 +15,13 @@
           "areas": "Districts"
         }
       },
+      "cities": {
+        "title": "City Selection",
+        "description": "Optionally select specific cities for more granular filtering. Leave empty to use district-level filtering.",
+        "data": {
+          "cities": "Cities"
+        }
+      },
       "categories": {
         "title": "Alert Categories",
         "description": "Select which alert categories to monitor. Leave empty for all categories.",
@@ -43,6 +50,13 @@
         "description": "Select districts to monitor.",
         "data": {
           "areas": "Districts"
+        }
+      },
+      "cities": {
+        "title": "City Selection",
+        "description": "Optionally select specific cities. Leave empty to use district-level filtering.",
+        "data": {
+          "cities": "Cities"
         }
       },
       "categories": {

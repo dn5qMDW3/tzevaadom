@@ -177,3 +177,36 @@ class DefinitionsManager:
             if entry["district"] in districts:
                 areas.extend(entry.get("areas", []))
         return sorted(areas)
+
+    def get_cities_for_districts(self, districts: list[str]) -> list[dict[str, str]]:
+        """Get cities with labels for given districts (for UI selectors).
+
+        Returns list of {"label": "city (district)", "value": "city"}.
+        """
+        cities: list[dict[str, str]] = []
+        for entry in self._districts:
+            if entry["district"] in districts:
+                for area in entry.get("areas", []):
+                    cities.append(
+                        {
+                            "label": f"{area} ({entry['district']})",
+                            "value": area,
+                        }
+                    )
+        return sorted(cities, key=lambda c: c["label"])
+
+    def get_all_cities(self) -> list[dict[str, str]]:
+        """Get all cities with labels (for UI selectors).
+
+        Returns list of {"label": "city (district)", "value": "city"}.
+        """
+        cities: list[dict[str, str]] = []
+        for entry in self._districts:
+            for area in entry.get("areas", []):
+                cities.append(
+                    {
+                        "label": f"{area} ({entry['district']})",
+                        "value": area,
+                    }
+                )
+        return sorted(cities, key=lambda c: c["label"])

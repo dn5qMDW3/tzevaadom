@@ -14,6 +14,7 @@ from .api import OrefApiClient, OrefApiError
 from .const import (
     CONF_AREAS,
     CONF_CATEGORIES,
+    CONF_CITIES,
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
@@ -38,6 +39,9 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         self.client = client
         self._selected_areas: set[str] = set(
             config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS, []))
+        )
+        self._selected_cities: set[str] = set(
+            config_entry.options.get(CONF_CITIES, config_entry.data.get(CONF_CITIES, []))
         )
         self._selected_categories: set[int] = {
             int(c)
@@ -64,11 +68,14 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
     def update_filters(
         self,
         areas: list[str] | None = None,
+        cities: list[str] | None = None,
         categories: list[int] | None = None,
     ) -> None:
-        """Update area and category filters."""
+        """Update area, city, and category filters."""
         if areas is not None:
             self._selected_areas = set(areas)
+        if cities is not None:
+            self._selected_cities = set(cities)
         if categories is not None:
             self._selected_categories = set(categories)
 
@@ -77,11 +84,18 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         # If no categories selected, accept all
         if self._selected_categories and alert.cat not in self._selected_categories:
             return False
-        # If no areas selected, accept all
-        if self._selected_areas and not any(
+
+        # City filter takes precedence: if specific cities are selected,
+        # match only those cities (most granular)
+        if self._selected_cities:
+            if not any(city in self._selected_cities for city in alert.data):
+                return False
+        # Otherwise fall back to area/district-level filtering
+        elif self._selected_areas and not any(
             area in self._selected_areas for area in alert.data
         ):
             return False
+
         return True
 
     async def _async_update_data(self) -> OrefAlertData:

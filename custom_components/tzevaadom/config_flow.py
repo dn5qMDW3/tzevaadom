@@ -32,6 +32,7 @@ from .const import (
     ALERT_CATEGORIES,
     CONF_AREAS,
     CONF_CATEGORIES,
+    CONF_CITIES,
     CONF_ENABLE_NATIONWIDE,
     CONF_POLL_INTERVAL,
     CONF_PROXY_URL,
@@ -65,6 +66,7 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._proxy_url: str | None = None
         self._selected_areas: list[str] = []
+        self._selected_cities: list[str] = []
         self._selected_categories: list[int] = []
         self._definitions: DefinitionsManager | None = None
 
@@ -117,7 +119,7 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle area selection step."""
         if user_input is not None:
             self._selected_areas = user_input.get(CONF_AREAS, [])
-            return await self.async_step_categories()
+            return await self.async_step_cities()
 
         definitions = await self._get_definitions()
         districts = definitions.get_districts()
@@ -140,6 +142,41 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             description_placeholders={
                 "note": "Select districts to monitor. Leave empty for all areas."
+            },
+        )
+
+    async def async_step_cities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle city selection step."""
+        if user_input is not None:
+            self._selected_cities = user_input.get(CONF_CITIES, [])
+            return await self.async_step_categories()
+
+        definitions = await self._get_definitions()
+
+        # Show cities from selected districts, or all cities if no districts selected
+        if self._selected_areas:
+            city_options = definitions.get_cities_for_districts(self._selected_areas)
+        else:
+            city_options = definitions.get_all_cities()
+
+        return self.async_show_form(
+            step_id="cities",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_CITIES, default=[]): SelectSelector(
+                        SelectSelectorConfig(
+                            options=city_options,
+                            multiple=True,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            custom_value=False,
+                        )
+                    ),
+                }
+            ),
+            description_placeholders={
+                "note": "Optionally select specific cities for more granular filtering. Leave empty to use district-level filtering."
             },
         )
 
@@ -196,6 +233,7 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             data = {
                 CONF_PROXY_URL: self._proxy_url or "",
                 CONF_AREAS: resolved_areas,
+                CONF_CITIES: self._selected_cities,
                 CONF_CATEGORIES: self._selected_categories,
                 CONF_POLL_INTERVAL: int(user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)),
                 CONF_WEEKLY_RESET_DAY: int(user_input.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)),
@@ -204,7 +242,11 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             }
 
             title = "Tzeva Adom"
-            if self._selected_areas:
+            if self._selected_cities:
+                title = f"Tzeva Adom - {', '.join(self._selected_cities[:3])}"
+                if len(self._selected_cities) > 3:
+                    title += "..."
+            elif self._selected_areas:
                 title = f"Tzeva Adom - {', '.join(self._selected_areas[:3])}"
                 if len(self._selected_areas) > 3:
                     title += "..."
@@ -256,6 +298,7 @@ class TzevaadomOptionsFlow(OptionsFlow):
         """Initialize options flow."""
         self._config_entry = config_entry
         self._selected_areas: list[str] = []
+        self._selected_cities: list[str] = []
         self._selected_categories: list[int] = []
         self._definitions: DefinitionsManager | None = None
 
@@ -272,7 +315,7 @@ class TzevaadomOptionsFlow(OptionsFlow):
         """Handle the initial options step (areas)."""
         if user_input is not None:
             self._selected_areas = user_input.get(CONF_AREAS, [])
-            return await self.async_step_categories()
+            return await self.async_step_cities()
 
         definitions = await self._get_definitions()
         districts = definitions.get_districts()
@@ -287,6 +330,47 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_AREAS, default=current_districts): SelectSelector(
                         SelectSelectorConfig(
                             options=options,
+                            multiple=True,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            custom_value=False,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_cities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle city selection in options."""
+        if user_input is not None:
+            self._selected_cities = user_input.get(CONF_CITIES, [])
+            return await self.async_step_categories()
+
+        definitions = await self._get_definitions()
+
+        # Show cities from selected districts, or all cities if no districts selected
+        if self._selected_areas:
+            city_options = definitions.get_cities_for_districts(self._selected_areas)
+        else:
+            city_options = definitions.get_all_cities()
+
+        # Pre-select currently configured cities
+        current_cities = self._config_entry.options.get(
+            CONF_CITIES,
+            self._config_entry.data.get(CONF_CITIES, []),
+        )
+        # Only keep cities that are valid for the current district selection
+        valid_values = {c["value"] for c in city_options}
+        current_cities = [c for c in current_cities if c in valid_values]
+
+        return self.async_show_form(
+            step_id="cities",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_CITIES, default=current_cities): SelectSelector(
+                        SelectSelectorConfig(
+                            options=city_options,
                             multiple=True,
                             mode=SelectSelectorMode.DROPDOWN,
                             custom_value=False,
@@ -344,6 +428,7 @@ class TzevaadomOptionsFlow(OptionsFlow):
             return self.async_create_entry(
                 data={
                     CONF_AREAS: resolved_areas,
+                    CONF_CITIES: self._selected_cities,
                     CONF_CATEGORIES: self._selected_categories,
                     CONF_POLL_INTERVAL: int(
                         user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
