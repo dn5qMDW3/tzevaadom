@@ -18,6 +18,48 @@
         "state": {
           "off": "mdi:alert-octagon-outline"
         }
+      },
+      "alert_cat_1": {
+        "default": "mdi:rocket-launch"
+      },
+      "alert_cat_2": {
+        "default": "mdi:airplane-alert"
+      },
+      "alert_cat_3": {
+        "default": "mdi:earth-box"
+      },
+      "alert_cat_4": {
+        "default": "mdi:waves"
+      },
+      "alert_cat_5": {
+        "default": "mdi:hazard-lights"
+      },
+      "alert_cat_6": {
+        "default": "mdi:account-alert"
+      },
+      "alert_cat_7": {
+        "default": "mdi:radioactive"
+      },
+      "alert_cat_8": {
+        "default": "mdi:rocket-launch-outline"
+      },
+      "alert_cat_9": {
+        "default": "mdi:airplane-clock"
+      },
+      "alert_cat_10": {
+        "default": "mdi:earth-box-minus"
+      },
+      "alert_cat_11": {
+        "default": "mdi:waves-arrow-up"
+      },
+      "alert_cat_12": {
+        "default": "mdi:hazard-lights"
+      },
+      "alert_cat_13": {
+        "default": "mdi:account-alert-outline"
+      },
+      "alert_cat_14": {
+        "default": "mdi:alert-circle"
       }
     },
     "sensor": {
@@ -34,6 +76,9 @@
         "default": "mdi:counter"
       },
       "last_alert": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "alert_type": {
         "default": "mdi:alert-circle-outline"
       }
     }

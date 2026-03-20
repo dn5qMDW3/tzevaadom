@@ -81,6 +81,48 @@
       },
       "early_warning": {
         "name": "Early Warning"
+      },
+      "alert_cat_1": {
+        "name": "Alert - Rockets and Missiles"
+      },
+      "alert_cat_2": {
+        "name": "Alert - Hostile Aircraft"
+      },
+      "alert_cat_3": {
+        "name": "Alert - Earthquake"
+      },
+      "alert_cat_4": {
+        "name": "Alert - Tsunami"
+      },
+      "alert_cat_5": {
+        "name": "Alert - Hazardous Materials"
+      },
+      "alert_cat_6": {
+        "name": "Alert - Terrorist Infiltration"
+      },
+      "alert_cat_7": {
+        "name": "Alert - Radiological Event"
+      },
+      "alert_cat_8": {
+        "name": "Drill - Rockets and Missiles"
+      },
+      "alert_cat_9": {
+        "name": "Drill - Hostile Aircraft"
+      },
+      "alert_cat_10": {
+        "name": "Drill - Earthquake"
+      },
+      "alert_cat_11": {
+        "name": "Drill - Tsunami"
+      },
+      "alert_cat_12": {
+        "name": "Drill - Hazardous Materials"
+      },
+      "alert_cat_13": {
+        "name": "Drill - Terrorist Infiltration"
+      },
+      "alert_cat_14": {
+        "name": "Alert - Special Announcement"
       }
     },
     "sensor": {
@@ -110,6 +152,9 @@
       },
       "yearly_alert_count_nationwide": {
         "name": "Yearly Alert Count (Nationwide)"
+      },
+      "alert_type": {
+        "name": "Alert Type"
       }
     }
   }

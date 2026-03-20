@@ -30,6 +30,7 @@ async def async_setup_entry(
         TzevaadomCounterSensor(coordinator, counter_manager, "monthly"),
         TzevaadomCounterSensor(coordinator, counter_manager, "yearly"),
         TzevaadomLastAlertSensor(coordinator),
+        TzevaadomAlertTypeSensor(coordinator),
     ]
 
     # Add nationwide counters if enabled
@@ -205,4 +206,52 @@ class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
             "title": alert.title,
             "description": alert.desc,
             "cities": alert.data,
+        }
+
+
+class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
+    """Sensor showing the type/category of the currently active alert."""
+
+    def __init__(self, coordinator: OrefDataUpdateCoordinator) -> None:
+        """Initialize the alert type sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_alert_type"
+        )
+        self._attr_translation_key = "alert_type"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the category name of the active alert."""
+        if self.coordinator.data is None or not self.coordinator.data.active_alerts:
+            return None
+        alert = self.coordinator.data.active_alerts[0]
+        category_info = ALERT_CATEGORIES.get(alert.cat, {})
+        return category_info.get("en", alert.title)
+
+    @property
+    def icon(self) -> str:
+        """Return icon based on active alert category."""
+        if self.coordinator.data and self.coordinator.data.active_alerts:
+            cat = self.coordinator.data.active_alerts[0].cat
+            return ALERT_CATEGORIES.get(cat, {}).get("icon", "mdi:alert")
+        return "mdi:alert-circle-outline"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, any]:
+        """Return alert type details."""
+        if self.coordinator.data is None or not self.coordinator.data.active_alerts:
+            return {}
+
+        alert = self.coordinator.data.active_alerts[0]
+        category_info = ALERT_CATEGORIES.get(alert.cat, {})
+
+        # Collect all active category IDs
+        active_cats = sorted({a.cat for a in self.coordinator.data.active_alerts})
+
+        return {
+            "category_id": alert.cat,
+            "category_name_he": category_info.get("he", ""),
+            "category_name_en": category_info.get("en", ""),
+            "active_categories": active_cats,
         }

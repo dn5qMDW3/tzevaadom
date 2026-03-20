@@ -10,7 +10,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import ALERT_CATEGORIES, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
+from .const import (
+    ALERT_CATEGORIES,
+    CONF_ENABLE_NATIONWIDE,
+    DEFAULT_ENABLE_NATIONWIDE,
+    DOMAIN,
+    ENABLED_BY_DEFAULT_CATEGORIES,
+)
 from .coordinator import OrefDataUpdateCoordinator
 from .entity import TzevaadomEntity
 
@@ -36,6 +42,16 @@ async def async_setup_entry(
     )
     if enable_nationwide:
         entities.append(TzevaadomAlertBinarySensor(coordinator, filtered=False))
+
+    # Per-category binary sensors (cat 1 & 2 enabled by default, rest disabled)
+    for cat_id in ALERT_CATEGORIES:
+        entities.append(
+            TzevaadomCategoryBinarySensor(
+                coordinator,
+                cat_id,
+                enabled_default=cat_id in ENABLED_BY_DEFAULT_CATEGORIES,
+            )
+        )
 
     async_add_entities(entities)
 
@@ -169,3 +185,68 @@ class TzevaadomEarlyWarningBinarySensor(TzevaadomEntity, BinarySensorEntity):
         if self.coordinator.data and self.coordinator.data.is_early_warning_active:
             return "mdi:alert-octagon"
         return "mdi:alert-octagon-outline"
+
+
+class TzevaadomCategoryBinarySensor(TzevaadomEntity, BinarySensorEntity):
+    """Binary sensor for a specific alert category."""
+
+    _attr_device_class = BinarySensorDeviceClass.SAFETY
+
+    def __init__(
+        self,
+        coordinator: OrefDataUpdateCoordinator,
+        cat_id: int,
+        enabled_default: bool,
+    ) -> None:
+        """Initialize the category binary sensor."""
+        super().__init__(coordinator)
+        self._cat_id = cat_id
+        self._category_info = ALERT_CATEGORIES.get(cat_id, {})
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_alert_cat_{cat_id}"
+        self._attr_translation_key = f"alert_cat_{cat_id}"
+        self._attr_entity_registry_enabled_default = enabled_default
+
+    def _get_category_alerts(self) -> list:
+        """Return active alerts matching this category."""
+        if self.coordinator.data is None:
+            return []
+        return [a for a in self.coordinator.data.active_alerts if a.cat == self._cat_id]
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true if alert of this category is active."""
+        if self.coordinator.data is None:
+            return None
+        return len(self._get_category_alerts()) > 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, any]:
+        """Return category alert details."""
+        alerts = self._get_category_alerts()
+        if not alerts:
+            return {
+                "alert_count": 0,
+                "cities": [],
+                "category_id": self._cat_id,
+                "category_name_he": self._category_info.get("he", ""),
+                "category_name_en": self._category_info.get("en", ""),
+            }
+
+        all_cities = []
+        for alert in alerts:
+            all_cities.extend(alert.data)
+
+        return {
+            "alert_count": len(alerts),
+            "cities": all_cities,
+            "category_id": self._cat_id,
+            "category_name_he": self._category_info.get("he", ""),
+            "category_name_en": self._category_info.get("en", ""),
+            "title": alerts[0].title,
+            "description": alerts[0].desc,
+        }
+
+    @property
+    def icon(self) -> str:
+        """Return icon for this category."""
+        return self._category_info.get("icon", "mdi:alert")
