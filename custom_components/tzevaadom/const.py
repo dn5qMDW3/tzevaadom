@@ -29,6 +29,11 @@ TZOFAR_ALERTS_URL = f"{TZOFAR_API_BASE}/notifications"
 TZOFAR_HISTORY_URL = f"{TZOFAR_API_BASE}/alerts-history/"
 TZOFAR_VERSIONS_URL = f"{TZOFAR_API_BASE}/lists-versions"
 TZOFAR_CITIES_URL = "https://www.tzevaadom.co.il/static/cities.json"
+TZOFAR_FEED_URL = f"{TZOFAR_API_BASE}/ios/feed"
+
+# Tzofar instruction types (from /ios/feed → instructions[].instructionType)
+TZOFAR_INSTRUCTION_EARLY_WARNING = 0
+TZOFAR_INSTRUCTION_END_EVENT = 1
 
 # Tzofar threat ID → Oref category ID mapping
 # Based on THREATS_TITLES in tzevaadom.co.il/tzofar-site/static/js/app.js
@@ -40,45 +45,48 @@ TZOFAR_THREAT_TO_OREF_CAT: dict[int, int] = {
     4: 4,   # צונאמי → Tsunami
     5: 2,   # חדירת כלי טיס עוין → Hostile Aircraft Intrusion
     6: 7,   # אירוע רדיולוגי → Radiological Event
-    7: 14,  # ירי בלתי קונבנציונלי → Special Announcement
+    7: 14,  # ירי בלתי קונבנציונלי (Non-conventional Missile) → Special Announcement
+             # NOTE: High severity in Tzofar (priority #2), but Oref has no dedicated category
     8: 14,  # התרעה (General Alert) → Special Announcement
+    9: 8,   # תרגיל פיקוד העורף (Home Front Drill) → Drill - Rockets
+             # Tzofar's DRILLS_THREAT_ID; visually rendered as threat 0 (rockets drill)
 }
 # When isDrill=True, shift base categories 1-6 to their drill equivalents 8-13
 TZOFAR_DRILL_CAT_OFFSET = 7
 
 # Tzofar area ID → Hebrew district name
-# Cross-referenced from Oref districts and Tzofar cities.json
+# Source: https://www.tzevaadom.co.il/static/cities.json → areas
 TZOFAR_AREA_NAMES: dict[int, str] = {
-    1: "גליל עליון",
-    2: "מרכז הנגב",
-    3: "שפלת יהודה",
-    4: "בקעת בית שאן",
-    5: "חדרה",
-    6: "קו העימות",
-    7: "לכיש",
-    9: "שרון",
-    10: "גולן",
-    11: "שומרון",
-    12: "ים המלח",
-    13: "עוטף עזה",
-    14: "דרום הנגב",
-    15: "מנשה",
-    16: "גליל תחתון",
-    17: "מערב הנגב",
-    18: "גוש דן",
-    19: "חיפה",
-    20: "ירקון",
-    21: "אשקלון",
-    22: "יערות הכרמל",
-    23: "השפלה",
-    24: "באר שבע",
-    25: "בקעת הירדן",
-    26: "אילת",
-    27: "ערבה",
-    28: "קצרין",
-    29: "בקעה",
-    32: "ירושלים",
-    34: "העמקים",
+    1: "גליל עליון",       # Upper Galilee
+    2: "דרום הנגב",         # Southern Negev
+    3: "שפלת יהודה",        # Judean Foothills
+    4: "גליל תחתון",        # Lower Galilee
+    5: "מנשה",              # Menashe
+    6: "קו העימות",         # Confrontation Line
+    7: "לכיש",              # Lachish
+    9: "שרון",              # Sharon
+    10: "דרום הגולן",       # Southern Golan
+    11: "שומרון",           # Samaria
+    12: "ים המלח",          # Dead Sea
+    13: "עוטף עזה",         # Gaza Envelope
+    14: "יהודה",            # Judea
+    15: "ואדי ערה",         # Wadi Ara
+    16: "מרכז הגליל",       # Central Galilee
+    17: "מערב הנגב",        # Western Negev
+    18: "דן",               # Dan (Tel Aviv, Ramat Gan, Bnei Brak, etc.)
+    19: "המפרץ",            # The Bay (Haifa Bay area)
+    20: "ירקון",            # Yarkon
+    21: "מערב לכיש",        # Western Lachish
+    22: "הכרמל",            # Carmel
+    23: "השפלה",            # Lowlands
+    24: "מרכז הנגב",        # Central Negev
+    25: "בקעת בית שאן",     # Beit She'an Valley
+    26: "אילת",             # Eilat
+    27: "ערבה",             # Arava
+    28: "צפון הגולן",       # Northern Golan
+    29: "בקעה",             # Jordan Valley
+    32: "ירושלים",          # Jerusalem
+    34: "העמקים",           # Valleys
 }
 
 # Config keys

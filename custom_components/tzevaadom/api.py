@@ -9,17 +9,22 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
+import time
+
 from .const import (
     ALERT_CATEGORIES,
     OREF_ALERTS_URL,
     OREF_DISTRICTS_URL,
     OREF_HEADERS,
     OREF_HISTORY_URL,
+    OREF_TITLE_EARLY_WARNING_ALT,
     TZOFAR_ALERTS_URL,
     TZOFAR_AREA_NAMES,
     TZOFAR_CITIES_URL,
     TZOFAR_DRILL_CAT_OFFSET,
+    TZOFAR_FEED_URL,
     TZOFAR_HISTORY_URL,
+    TZOFAR_INSTRUCTION_EARLY_WARNING,
     TZOFAR_THREAT_TO_OREF_CAT,
     TZOFAR_VERSIONS_URL,
 )
@@ -59,6 +64,14 @@ class AlertApiClient(ABC):
     @abstractmethod
     async def test_connection(self) -> bool:
         """Test if the API is reachable."""
+
+    async def get_early_warnings(self) -> list[dict[str, Any]]:
+        """Fetch early warnings from the data source.
+
+        Default: return empty list. Oref delivers early warnings through the
+        regular alerts endpoint, so only Tzofar needs to override this.
+        """
+        return []
 
 
 class OrefApiClient(AlertApiClient):
@@ -163,6 +176,7 @@ class TzofarApiClient(AlertApiClient):
     def __init__(self, session: ClientSession) -> None:
         """Initialize the API client."""
         self._session = session
+        self._city_id_map: dict[int, str] | None = None
 
     async def _fetch(self, url: str) -> str:
         """Fetch data from the API and return raw text."""
@@ -283,6 +297,92 @@ class TzofarApiClient(AlertApiClient):
                 "areaname": district_name,
             })
         return result
+
+    async def _ensure_city_map(self) -> None:
+        """Lazily load Tzofar city ID → name mapping from cities.json."""
+        if self._city_id_map is not None:
+            return
+        self._city_id_map = {}
+        try:
+            # Fetch versioned cities.json
+            version = ""
+            try:
+                ver_text = await self._fetch(TZOFAR_VERSIONS_URL)
+                ver_data = json.loads(ver_text)
+                version = str(ver_data.get("cities", ""))
+            except (OrefApiError, json.JSONDecodeError, KeyError):
+                pass
+            url = f"{TZOFAR_CITIES_URL}?v={version}" if version else TZOFAR_CITIES_URL
+            text = await self._fetch(url)
+            data = json.loads(text)
+            cities = data.get("cities", data) if isinstance(data, dict) else {}
+            for city_key, info in cities.items():
+                if isinstance(info, dict) and "id" in info:
+                    self._city_id_map[info["id"]] = info.get("he", city_key)
+            _LOGGER.debug(
+                "Loaded Tzofar city ID map: %d cities", len(self._city_id_map)
+            )
+        except (OrefApiError, json.JSONDecodeError) as err:
+            _LOGGER.warning("Failed to load Tzofar city map: %s", err)
+
+    async def get_early_warnings(self) -> list[dict[str, Any]]:
+        """Fetch early warnings from Tzofar iOS feed instructions.
+
+        Tzofar delivers early warnings via SYSTEM_MESSAGE instructions
+        (instructionType=0), not through the /notifications endpoint.
+        The /ios/feed endpoint provides both alerts and instructions.
+        """
+        try:
+            text = await self._fetch(TZOFAR_FEED_URL)
+        except OrefApiError:
+            return []
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            _LOGGER.warning("Failed to parse Tzofar feed response")
+            return []
+
+        instructions = data.get("instructions", [])
+        if not instructions:
+            return []
+
+        # Ensure we can resolve city IDs to names
+        await self._ensure_city_map()
+        if not self._city_id_map:
+            _LOGGER.debug("No city map available, skipping early warnings")
+            return []
+
+        now = time.time()
+        results: list[dict[str, Any]] = []
+        for inst in instructions:
+            if inst.get("instructionType") != TZOFAR_INSTRUCTION_EARLY_WARNING:
+                continue
+            # Skip expired instructions
+            pin_until = inst.get("pinUntil")
+            if pin_until and pin_until < now:
+                continue
+            # Resolve numeric city IDs to Hebrew names
+            city_ids = inst.get("citiesIds", [])
+            city_names = [
+                self._city_id_map[cid]
+                for cid in city_ids
+                if cid in self._city_id_map
+            ]
+            if not city_names:
+                continue
+            results.append({
+                "id": str(inst.get("id", "")),
+                "cat": 14,
+                "title": OREF_TITLE_EARLY_WARNING_ALT,
+                "desc": inst.get("titleEn", "Early Warning"),
+                "data": city_names,
+            })
+        _LOGGER.debug(
+            "Tzofar early warnings: %d active from %d instructions",
+            len(results),
+            len(instructions),
+        )
+        return results
 
     async def test_connection(self) -> bool:
         """Test if the Tzofar API is reachable."""

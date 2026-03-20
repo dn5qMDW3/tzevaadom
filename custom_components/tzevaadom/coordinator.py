@@ -109,6 +109,18 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         except OrefApiError as err:
             raise UpdateFailed(f"Error fetching alerts: {err}") from err
 
+        # Fetch early warnings from source-specific endpoint (Tzofar only)
+        # Oref delivers early warnings through the regular alerts endpoint
+        try:
+            ew_from_source = await self.client.get_early_warnings()
+            if ew_from_source:
+                raw_alerts.extend(ew_from_source)
+                _LOGGER.debug(
+                    "Merged %d early warnings from source", len(ew_from_source)
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Early warnings fetch failed, continuing without")
+
         # Parse all alerts and sort into 3 buckets
         all_alerts_raw = [OrefAlert.from_dict(a) for a in raw_alerts]
 
