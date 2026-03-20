@@ -25,6 +25,7 @@ from .const import (
     TZOFAR_FEED_URL,
     TZOFAR_HISTORY_URL,
     TZOFAR_INSTRUCTION_EARLY_WARNING,
+    TZOFAR_INSTRUCTION_END_EVENT,
     TZOFAR_THREAT_TO_OREF_CAT,
     TZOFAR_VERSIONS_URL,
 )
@@ -72,6 +73,15 @@ class AlertApiClient(ABC):
         regular alerts endpoint, so only Tzofar needs to override this.
         """
         return []
+
+    async def get_event_ended_cities(self) -> set[str]:
+        """Fetch cities with explicit "Event Ended" (all-clear) from the source.
+
+        Default: return empty set. Oref delivers event-ended through the
+        regular alerts endpoint. Only Tzofar needs to override this to
+        fetch from the /ios/feed instructions (instructionType=1).
+        """
+        return set()
 
 
 class OrefApiClient(AlertApiClient):
@@ -383,6 +393,52 @@ class TzofarApiClient(AlertApiClient):
             len(instructions),
         )
         return results
+
+    async def get_event_ended_cities(self) -> set[str]:
+        """Fetch cities with explicit all-clear from Tzofar feed instructions.
+
+        Tzofar delivers "Event Ended" via SYSTEM_MESSAGE instructions
+        (instructionType=1) on the /ios/feed endpoint.
+        """
+        try:
+            text = await self._fetch(TZOFAR_FEED_URL)
+        except OrefApiError:
+            return set()
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return set()
+
+        instructions = data.get("instructions", [])
+        if not instructions:
+            return set()
+
+        await self._ensure_city_map()
+        if not self._city_id_map:
+            return set()
+
+        # Collect cities from recent END_EVENT instructions (last 15 minutes)
+        now = time.time()
+        ended_cities: set[str] = set()
+        for inst in instructions:
+            if inst.get("instructionType") != TZOFAR_INSTRUCTION_END_EVENT:
+                continue
+            # Only consider recent event-ended (within 15 min)
+            inst_time = inst.get("time", 0)
+            if now - inst_time > 15 * 60:
+                continue
+            city_ids = inst.get("citiesIds", [])
+            for cid in city_ids:
+                name = self._city_id_map.get(cid)
+                if name:
+                    ended_cities.add(name)
+
+        if ended_cities:
+            _LOGGER.debug(
+                "Tzofar event-ended: %d cities from feed instructions",
+                len(ended_cities),
+            )
+        return ended_cities
 
     async def test_connection(self) -> bool:
         """Test if the Tzofar API is reachable."""

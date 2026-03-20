@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -11,6 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import AlertApiClient, OrefApiError
 from .const import (
+    ALERT_RETENTION_TIMEOUT,
     CONF_AREAS,
     CONF_CATEGORIES,
     CONF_CITIES,
@@ -27,7 +29,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
-    """Coordinator to poll Oref alerts and apply filters."""
+    """Coordinator to poll Oref alerts and apply filters.
+
+    Alert retention policy:
+        Alerts are retained as active until an explicit "Event Ended"
+        (all-clear) notification is received for those cities, OR until
+        a safety timeout expires. This matches real-world behavior where
+        people must stay in shelter until the all-clear is given — not
+        just until the alert disappears from the live API feed.
+    """
 
     config_entry: ConfigEntry
 
@@ -51,9 +61,16 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             int(c)
             for c in get_entry_option(config_entry, CONF_CATEGORIES, [])
         }
+
+        # Seen IDs for deduplication (prevent re-firing events)
         self._seen_alert_ids: set[str] = set()
         self._seen_alert_ids_all: set[str] = set()
         self._seen_early_warning_ids: set[str] = set()
+
+        # Alert retention: keep alerts active until explicit all-clear.
+        # Maps city name → (alert, first_seen_timestamp)
+        self._retained_cities: dict[str, tuple[OrefAlert, float]] = {}
+
         self._last_data: OrefAlertData = OrefAlertData()
 
         poll_interval = get_entry_option(
@@ -102,15 +119,51 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
 
         return True
 
+    def _get_retained_alerts(self) -> list[OrefAlert]:
+        """Build deduplicated alert list from retained cities.
+
+        Groups retained cities back into their original alert objects,
+        keeping only cities that are still retained (some may have been
+        cleared by event-ended while others in the same alert are still active).
+        """
+        # Group retained cities by alert ID
+        alert_cities: dict[str, tuple[OrefAlert, list[str]]] = {}
+        for city, (alert, _ts) in self._retained_cities.items():
+            if alert.id not in alert_cities:
+                alert_cities[alert.id] = (alert, [])
+            alert_cities[alert.id][1].append(city)
+
+        # Rebuild alerts with only their still-retained cities
+        result: list[OrefAlert] = []
+        for alert_id, (alert, cities) in alert_cities.items():
+            result.append(
+                OrefAlert(
+                    id=alert.id,
+                    cat=alert.cat,
+                    title=alert.title,
+                    desc=alert.desc,
+                    data=sorted(cities),
+                )
+            )
+        return result
+
     async def _async_update_data(self) -> OrefAlertData:
-        """Fetch and process alert data."""
+        """Fetch and process alert data.
+
+        Pipeline:
+        1. Fetch alerts from API + early warnings (Tzofar) + event-ended (Tzofar)
+        2. Classify into real alerts, early warnings, event-ended cities
+        3. Update retained state: add new alerts, remove event-ended cities
+        4. Auto-expire stale retained alerts (safety timeout)
+        5. Build active alerts from retained state (NOT just current poll)
+        6. Apply filters, detect new alerts, fire events
+        """
         try:
             raw_alerts = await self.client.get_alerts()
         except OrefApiError as err:
             raise UpdateFailed(f"Error fetching alerts: {err}") from err
 
         # Fetch early warnings from source-specific endpoint (Tzofar only)
-        # Oref delivers early warnings through the regular alerts endpoint
         try:
             ew_from_source = await self.client.get_early_warnings()
             if ew_from_source:
@@ -121,12 +174,20 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         except Exception:  # noqa: BLE001
             _LOGGER.debug("Early warnings fetch failed, continuing without")
 
+        # Fetch event-ended cities from source-specific endpoint (Tzofar only)
+        # For Oref, event-ended comes through the regular alerts endpoint
+        source_ended_cities: set[str] = set()
+        try:
+            source_ended_cities = await self.client.get_event_ended_cities()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Event-ended fetch failed, continuing without")
+
         # Parse all alerts and sort into 3 buckets
         all_alerts_raw = [OrefAlert.from_dict(a) for a in raw_alerts]
 
-        real_alerts: list[OrefAlert] = []
+        new_real_alerts: list[OrefAlert] = []
         early_warnings: list[OrefAlert] = []
-        event_ended_cities: set[str] = set()
+        event_ended_cities: set[str] = set(source_ended_cities)
 
         for alert in all_alerts_raw:
             if alert.is_event_ended:
@@ -134,42 +195,71 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             elif alert.is_early_warning:
                 early_warnings.append(alert)
             elif alert.is_real_alert:
-                real_alerts.append(alert)
+                new_real_alerts.append(alert)
 
         _LOGGER.debug(
             "Parsed %d raw alerts: %d real, %d early warnings, %d event-ended cities",
             len(all_alerts_raw),
-            len(real_alerts),
+            len(new_real_alerts),
             len(early_warnings),
             len(event_ended_cities),
         )
 
-        # Apply event-ended reset: remove real alerts whose cities are ALL ended
+        # --- Update retained alert state ---
+        now = time.time()
+
+        # 1. Add new real alerts to retention
+        for alert in new_real_alerts:
+            for city in alert.data:
+                if city not in self._retained_cities:
+                    self._retained_cities[city] = (alert, now)
+
+        # 2. Remove event-ended cities from retention (the ALL CLEAR)
         if event_ended_cities:
-            before_count = len(real_alerts)
-            real_alerts = [
-                a for a in real_alerts
-                if not all(city in event_ended_cities for city in a.data)
-            ]
-            if len(real_alerts) < before_count:
+            cleared = []
+            for city in event_ended_cities:
+                if city in self._retained_cities:
+                    cleared.append(city)
+                    del self._retained_cities[city]
+            if cleared:
                 _LOGGER.debug(
-                    "Event-ended reset removed %d alerts",
-                    before_count - len(real_alerts),
+                    "Event-ended cleared %d cities from retention: %s",
+                    len(cleared),
+                    cleared[:10],
                 )
 
-        # Apply location/category filters to real alerts
+        # 3. Auto-expire stale retained alerts (safety timeout)
+        expired = [
+            city for city, (_alert, ts) in self._retained_cities.items()
+            if now - ts > ALERT_RETENTION_TIMEOUT
+        ]
+        for city in expired:
+            del self._retained_cities[city]
+        if expired:
+            _LOGGER.debug(
+                "Safety timeout expired %d retained cities: %s",
+                len(expired),
+                expired[:10],
+            )
+
+        # --- Build active alerts from retained state ---
+        # This is the key difference: active_alerts comes from retention,
+        # not just the current poll. Alerts stay active until all-clear.
+        real_alerts = self._get_retained_alerts()
+
+        # Apply location/category filters
         filtered_alerts = [a for a in real_alerts if self._filter_alert(a)]
 
-        # Apply location/category filters to early warnings too
         filtered_early_warnings = [
             a for a in early_warnings if self._filter_alert(a)
         ]
 
         if filtered_alerts:
             _LOGGER.debug(
-                "Active alerts: %d filtered, %d nationwide",
+                "Active alerts: %d filtered, %d nationwide, %d retained cities",
                 len(filtered_alerts),
                 len(real_alerts),
+                len(self._retained_cities),
             )
 
         # Detect new filtered alerts (not seen before)
@@ -201,14 +291,9 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
                 EVENT_TZEVAADOM_EARLY_WARNING, alert.to_event_data()
             )
 
-        # Update seen IDs - keep only current + recent to avoid unbounded growth
-        if real_alerts:
-            self._seen_alert_ids = current_ids
-            self._seen_alert_ids_all = current_ids_all
-        else:
-            self._seen_alert_ids.clear()
-            self._seen_alert_ids_all.clear()
-
+        # Update seen IDs
+        self._seen_alert_ids = current_ids
+        self._seen_alert_ids_all = current_ids_all
         if filtered_early_warnings:
             self._seen_early_warning_ids = current_ew_ids
         else:

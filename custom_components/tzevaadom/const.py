@@ -98,6 +98,10 @@ CONF_WEEKLY_RESET_DAY = "weekly_reset_day"
 CONF_ENABLE_NATIONWIDE = "enable_nationwide"
 CONF_PROXY_URL = "proxy_url"
 
+# Alert retention: keep alerts active until explicit "Event Ended" (all-clear).
+# Safety timeout in case we miss the event-ended notification.
+ALERT_RETENTION_TIMEOUT = 30 * 60  # 30 minutes
+
 # Defaults
 DEFAULT_POLL_INTERVAL = 2  # seconds
 DEFAULT_POLL_INTERVAL_TZOFAR = 3  # seconds (matches Tzofar's backup poll rate)
