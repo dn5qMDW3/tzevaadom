@@ -24,35 +24,43 @@ BUNDLED_DISTRICTS: dict[str, list[dict[str, str]]] = {
     # Format: {"label": "district_name", "areas": ["city1", "city2", ...]}
 }
 
-# Common district names for initial fallback
+# Fallback district names matching real Oref API areaname values.
+# These are shown in the config flow dropdown when definitions fail to load.
+# Updated 2026-03 from https://www.oref.org.il/districts/districts_heb.json
 DEFAULT_DISTRICTS: list[str] = [
     "אילת",
-    "אשדוד",
-    "אשקלון",
-    "באר שבע",
-    "בקעת הירדן",
-    "גוש דן",
+    "בית שמש",
+    "בקעה",
+    "בקעת בית שאן",
+    "גולן",
     "גליל עליון",
     "גליל תחתון",
+    "דן",             # Tel Aviv, Ramat Gan, Bnei Brak, etc.
     "דרום הנגב",
-    "הכרמל",
-    "המפרץ",
-    "העמקים",
+    "דרום השפלה",
     "השפלה",
-    "חדרה",
+    "ואדי ערה",
+    "חוף הכרמל",
     "חיפה",
+    "חפר",
+    "יהודה",
+    "ים המלח",
+    "יערות הכרמל",
     "ירושלים",
     "ירקון",
     "לכיש",
     "מנשה",
     "מערב הנגב",
+    "מערב לכיש",
     "מרכז הנגב",
-    "נתניה",
     "עוטף עזה",
+    "ערבה",
+    "קו העימות",
+    "קצרין",
+    "קריות",
     "שומרון",
-    "שפלת יהודה",
     "שרון",
-    "תל אביב",
+    "תבור",
 ]
 
 

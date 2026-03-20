@@ -63,8 +63,12 @@ class OrefAlert:
 
     @property
     def is_event_ended(self) -> bool:
-        """Return True if this is an 'Event Ended' notification."""
-        return self.cat == OREF_CAT_EVENT_ENDED and self.title == OREF_TITLE_EVENT_ENDED
+        """Return True if this is an 'Event Ended' notification.
+
+        Oref usually sends these as cat=13, but has been observed with other
+        categories too (e.g. cat=10). Match by title alone to be safe.
+        """
+        return self.title == OREF_TITLE_EVENT_ENDED
 
     @property
     def category_info(self) -> dict[str, str]:
