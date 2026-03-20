@@ -35,24 +35,25 @@ TZOFAR_FEED_URL = f"{TZOFAR_API_BASE}/ios/feed"
 TZOFAR_INSTRUCTION_EARLY_WARNING = 0
 TZOFAR_INSTRUCTION_END_EVENT = 1
 
-# Tzofar threat ID → Oref category ID mapping
+# Tzofar threat ID → Oref matrix_id mapping
 # Based on THREATS_TITLES in tzevaadom.co.il/tzofar-site/static/js/app.js
+# Matrix IDs are what Oref sends in the live API `cat` field
 TZOFAR_THREAT_TO_OREF_CAT: dict[int, int] = {
     0: 1,   # צבע אדום (Red Alert) → Rockets and Missiles
-    1: 5,   # חומרים מסוכנים → Hazardous Materials
-    2: 6,   # חדירת מחבלים → Terrorist Infiltration
+    1: 7,   # חומרים מסוכנים → Hazardous Materials
+    2: 13,  # חדירת מחבלים → Terrorist Infiltration
     3: 3,   # רעידת אדמה → Earthquake
-    4: 4,   # צונאמי → Tsunami
-    5: 2,   # חדירת כלי טיס עוין → Hostile Aircraft Intrusion
-    6: 7,   # אירוע רדיולוגי → Radiological Event
-    7: 14,  # ירי בלתי קונבנציונלי (Non-conventional Missile) → Special Announcement
-             # NOTE: High severity in Tzofar (priority #2), but Oref has no dedicated category
-    8: 14,  # התרעה (General Alert) → Special Announcement
-    9: 8,   # תרגיל פיקוד העורף (Home Front Drill) → Drill - Rockets
+    4: 5,   # צונאמי → Tsunami
+    5: 6,   # חדירת כלי טיס עוין → Hostile Aircraft Intrusion
+    6: 4,   # אירוע רדיולוגי → Radiological Event (CBRNE)
+    7: 2,   # ירי בלתי קונבנציונלי (Non-conventional Missile)
+             # NOTE: Highest priority in Oref (180), 2nd highest in Tzofar
+    8: 10,  # התרעה (General Alert) → Home Front Command Update
+    9: 101, # תרגיל פיקוד העורף (Home Front Drill) → Drill - Rockets
              # Tzofar's DRILLS_THREAT_ID; visually rendered as threat 0 (rockets drill)
 }
-# When isDrill=True, shift base categories 1-6 to their drill equivalents 8-13
-TZOFAR_DRILL_CAT_OFFSET = 7
+# When isDrill=True, shift base categories by +100 (Oref's drill offset)
+TZOFAR_DRILL_CAT_OFFSET = 100
 
 # Tzofar area ID → Hebrew district name
 # Source: https://www.tzevaadom.co.il/static/cities.json → areas
@@ -108,17 +109,22 @@ DEFAULT_POLL_INTERVAL_TZOFAR = 3  # seconds (matches Tzofar's backup poll rate)
 DEFAULT_WEEKLY_RESET_DAY = 6  # Sunday (0=Monday in Python, 6=Sunday)
 DEFAULT_ENABLE_NATIONWIDE = True
 
-# Alert categories
+# Alert categories — keyed by Oref matrix_id
+# Source: https://www.oref.org.il/alerts/alertCategories.json
+# Source: https://www.oref.org.il/alerts/alertsTranslation.json
+# The live API `cat` field contains matrix_id values.
+# Drills use matrix_id + 100.
 ALERT_CATEGORIES: dict[int, dict[str, str]] = {
+    # --- Real alerts ---
     1: {
         "he": "ירי רקטות וטילים",
         "en": "Rockets and Missiles",
         "icon": "mdi:rocket-launch",
     },
     2: {
-        "he": "חדירת כלי טיס עוין",
-        "en": "Hostile Aircraft Intrusion",
-        "icon": "mdi:airplane-alert",
+        "he": "ירי לא קונבנציונלי",
+        "en": "Non-conventional Missiles",
+        "icon": "mdi:alert-octagon",
     },
     3: {
         "he": "רעידת אדמה",
@@ -126,65 +132,91 @@ ALERT_CATEGORIES: dict[int, dict[str, str]] = {
         "icon": "mdi:earth-box",
     },
     4: {
-        "he": "צונאמי",
-        "en": "Tsunami",
-        "icon": "mdi:waves",
-    },
-    5: {
-        "he": "חומרים מסוכנים",
-        "en": "Hazardous Materials",
-        "icon": "mdi:hazard-lights",
-    },
-    6: {
-        "he": "חדירת מחבלים",
-        "en": "Terrorist Infiltration",
-        "icon": "mdi:account-alert",
-    },
-    7: {
         "he": "אירוע רדיולוגי",
         "en": "Radiological Event",
         "icon": "mdi:radioactive",
     },
+    5: {
+        "he": "צונאמי",
+        "en": "Tsunami",
+        "icon": "mdi:waves",
+    },
+    6: {
+        "he": "חדירת כלי טיס עוין",
+        "en": "Hostile Aircraft Intrusion",
+        "icon": "mdi:airplane-alert",
+    },
+    7: {
+        "he": "חומרים מסוכנים",
+        "en": "Hazardous Materials",
+        "icon": "mdi:hazard-lights",
+    },
     8: {
+        "he": "אזהרה",
+        "en": "Warning",
+        "icon": "mdi:alert",
+    },
+    10: {
+        "he": "עדכון פיקוד העורף",
+        "en": "Home Front Command Update",
+        "icon": "mdi:information",
+    },
+    13: {
+        "he": "חדירת מחבלים",
+        "en": "Terrorist Infiltration",
+        "icon": "mdi:account-alert",
+    },
+    # --- Drills (matrix_id + 100) ---
+    101: {
         "he": "תרגיל ירי רקטות וטילים",
         "en": "Drill - Rockets and Missiles",
         "icon": "mdi:rocket-launch-outline",
     },
-    9: {
-        "he": "תרגיל חדירת כלי טיס עוין",
-        "en": "Drill - Hostile Aircraft",
-        "icon": "mdi:airplane-clock",
+    102: {
+        "he": "תרגיל כללי",
+        "en": "Drill - General",
+        "icon": "mdi:alert-outline",
     },
-    10: {
+    103: {
         "he": "תרגיל רעידת אדמה",
         "en": "Drill - Earthquake",
         "icon": "mdi:earth-box-minus",
     },
-    11: {
+    104: {
+        "he": "תרגיל אירוע רדיולוגי",
+        "en": "Drill - Radiological Event",
+        "icon": "mdi:radioactive",
+    },
+    105: {
         "he": "תרגיל צונאמי",
         "en": "Drill - Tsunami",
         "icon": "mdi:waves-arrow-up",
     },
-    12: {
+    106: {
+        "he": "תרגיל חדירת כלי טיס עוין",
+        "en": "Drill - Hostile Aircraft",
+        "icon": "mdi:airplane-clock",
+    },
+    107: {
         "he": "תרגיל חומרים מסוכנים",
         "en": "Drill - Hazardous Materials",
         "icon": "mdi:hazard-lights",
     },
-    13: {
+    110: {
+        "he": "תרגיל עדכון",
+        "en": "Drill - Update",
+        "icon": "mdi:information-outline",
+    },
+    113: {
         "he": "תרגיל חדירת מחבלים",
         "en": "Drill - Terrorist Infiltration",
         "icon": "mdi:account-alert-outline",
     },
-    14: {
-        "he": "הודעה מיוחדת",
-        "en": "Special Announcement",
-        "icon": "mdi:alert-circle",
-    },
 }
 
 # Oref informational alert categories (not real alerts - should not be counted)
-# cat=13 with title "האירוע הסתיים" = "Event Ended" notification
-OREF_CAT_EVENT_ENDED = 13
+# Event-ended and other updates use matrix_id=10 ("update/flash")
+OREF_CAT_UPDATE = 10
 OREF_TITLE_EVENT_ENDED = "האירוע הסתיים"
 
 # Early Warning titles - tracked separately as their own binary sensor
@@ -204,7 +236,7 @@ INFORMATIONAL_TITLES: set[str] = {
 }
 
 # Per-category binary sensors: only these are enabled by default
-ENABLED_BY_DEFAULT_CATEGORIES: set[int] = {1, 2}  # Rockets, Hostile Aircraft
+ENABLED_BY_DEFAULT_CATEGORIES: set[int] = {1, 6}  # Rockets, Hostile Aircraft
 
 # Event names for Home Assistant bus
 EVENT_TZEVAADOM_ALERT = f"{DOMAIN}_alert"

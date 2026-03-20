@@ -204,13 +204,13 @@ class TzofarApiClient(AlertApiClient):
 
     @staticmethod
     def _map_threat_to_cat(threat: int, is_drill: bool) -> int:
-        """Map Tzofar threat ID to Oref category ID."""
+        """Map Tzofar threat ID to Oref matrix_id."""
         base_cat = TZOFAR_THREAT_TO_OREF_CAT.get(threat)
         if base_cat is None:
-            _LOGGER.warning("Unknown Tzofar threat value: %d, defaulting to cat 14", threat)
-            base_cat = 14
-        # Drills shift categories 1-6 to 8-13
-        if is_drill and 1 <= base_cat <= 6:
+            _LOGGER.warning("Unknown Tzofar threat value: %d, defaulting to cat 10", threat)
+            base_cat = 10
+        # Drills add +100 offset (matching Oref's drill system)
+        if is_drill and base_cat < 100:
             return base_cat + TZOFAR_DRILL_CAT_OFFSET
         return base_cat
 

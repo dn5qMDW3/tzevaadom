@@ -9,7 +9,7 @@ from .const import (
     ALERT_CATEGORIES,
     EARLY_WARNING_TITLES,
     INFORMATIONAL_TITLES,
-    OREF_CAT_EVENT_ENDED,
+    OREF_CAT_UPDATE,
     OREF_TITLE_EVENT_ENDED,
 )
 
@@ -47,14 +47,22 @@ class OrefAlert:
 
     @property
     def is_real_alert(self) -> bool:
-        """Return True if this is a real alert (not informational)."""
+        """Return True if this is a real alert (not informational/drill)."""
         if self.is_event_ended:
             return False
         if self.is_early_warning:
             return False
         if self.title in INFORMATIONAL_TITLES:
             return False
+        # matrix_id 10 = update/flash (event-ended, instructions, etc.)
+        if self.cat == OREF_CAT_UPDATE:
+            return False
         return True
+
+    @property
+    def is_drill(self) -> bool:
+        """Return True if this is a drill alert (matrix_id >= 100)."""
+        return self.cat >= 100
 
     @property
     def is_early_warning(self) -> bool:

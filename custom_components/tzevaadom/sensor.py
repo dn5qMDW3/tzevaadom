@@ -34,9 +34,9 @@ async def async_setup_entry(
         for period in COUNTER_PERIODS
     ]
     entities.append(TzevaadomLastAlertSensor(coordinator))
-    entities.append(TzevaadomAlertTypeSensor(coordinator))
+    entities.append(TzevaadomAlertTypeSensor(coordinator, nationwide=False))
 
-    # Add nationwide counters if enabled
+    # Add nationwide counters + alert type if enabled
     enable_nationwide = get_entry_option(
         config_entry, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
     )
@@ -47,6 +47,7 @@ async def async_setup_entry(
             )
             for period in COUNTER_PERIODS
         )
+        entities.append(TzevaadomAlertTypeSensor(coordinator, nationwide=True))
 
     async_add_entities(entities)
 
@@ -163,19 +164,33 @@ class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
 class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
     """Sensor showing the type/category of the currently active alert."""
 
-    def __init__(self, coordinator: OrefDataUpdateCoordinator) -> None:
+    def __init__(
+        self,
+        coordinator: OrefDataUpdateCoordinator,
+        *,
+        nationwide: bool = False,
+    ) -> None:
         """Initialize the alert type sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = (
-            f"{coordinator.config_entry.entry_id}_alert_type"
+        self._nationwide = nationwide
+        suffix = "alert_type_nationwide" if nationwide else "alert_type"
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{suffix}"
+        self._attr_translation_key = suffix
+
+    def _get_alerts(self) -> list:
+        """Return the relevant alerts list."""
+        if self.coordinator.data is None:
+            return []
+        return (
+            self.coordinator.data.all_alerts
+            if self._nationwide
+            else self.coordinator.data.active_alerts
         )
-        self._attr_translation_key = "alert_type"
 
     def _get_primary_alert(self):
         """Return the first active alert, or None."""
-        if self.coordinator.data and self.coordinator.data.active_alerts:
-            return self.coordinator.data.active_alerts[0]
-        return None
+        alerts = self._get_alerts()
+        return alerts[0] if alerts else None
 
     @property
     def native_value(self) -> str | None:
@@ -200,7 +215,8 @@ class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
         if alert is None:
             return {}
 
-        active_cats = sorted({a.cat for a in self.coordinator.data.active_alerts})
+        alerts = self._get_alerts()
+        active_cats = sorted({a.cat for a in alerts})
 
         return {
             "category_id": alert.cat,
