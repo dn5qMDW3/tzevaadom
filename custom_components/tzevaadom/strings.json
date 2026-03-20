@@ -9,17 +9,11 @@
         }
       },
       "areas": {
-        "title": "Area Selection",
-        "description": "Select districts to monitor for alerts. Leave empty to monitor all areas.",
+        "title": "Location Filter",
+        "description": "Choose how to filter alerts by location:\n\n**Districts** — monitor entire regions (e.g. all of Haifa district).\n**Cities** — pick specific cities for precise alerts.\n\nYou can use either or both. If cities are selected, only those cities will trigger alerts. Leave both empty for nationwide monitoring.",
         "data": {
-          "areas": "Districts"
-        }
-      },
-      "cities": {
-        "title": "City Selection",
-        "description": "Optionally select specific cities for more granular filtering. Leave empty to use district-level filtering.",
-        "data": {
-          "cities": "Cities"
+          "areas": "Districts (broad filter)",
+          "cities": "Cities (precise filter)"
         }
       },
       "categories": {
@@ -46,17 +40,11 @@
   "options": {
     "step": {
       "init": {
-        "title": "Area Selection",
-        "description": "Select districts to monitor.",
+        "title": "Location Filter",
+        "description": "**Districts** — monitor entire regions.\n**Cities** — pick specific cities for precise alerts.\n\nIf cities are selected, only those cities will trigger alerts. Leave both empty for nationwide monitoring.",
         "data": {
-          "areas": "Districts"
-        }
-      },
-      "cities": {
-        "title": "City Selection",
-        "description": "Optionally select specific cities. Leave empty to use district-level filtering.",
-        "data": {
-          "cities": "Cities"
+          "areas": "Districts (broad filter)",
+          "cities": "Cities (precise filter)"
         }
       },
       "categories": {
