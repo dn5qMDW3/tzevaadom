@@ -1,0 +1,7 @@
+reset_counters:
+  name: Reset Counters
+  description: Reset all alert counters (daily, weekly, monthly, yearly) to zero.
+
+force_refresh:
+  name: Force Refresh
+  description: Force an immediate refresh of alert data from Oref.

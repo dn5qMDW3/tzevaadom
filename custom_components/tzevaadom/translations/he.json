@@ -1,0 +1,91 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "חיבור",
+        "description": "הגדר חיבור ל-API של התרעות פיקוד העורף. השאר את כתובת ה-Proxy ריקה לחיבור ישיר (ישראל בלבד).",
+        "data": {
+          "proxy_url": "כתובת Proxy (אופציונלי)"
+        }
+      },
+      "areas": {
+        "title": "בחירת אזורים",
+        "description": "בחר מחוזות לניטור התרעות. השאר ריק לניטור כל האזורים.",
+        "data": {
+          "areas": "מחוזות"
+        }
+      },
+      "categories": {
+        "title": "קטגוריות התרעה",
+        "description": "בחר קטגוריות התרעה לניטור. השאר ריק לכל הקטגוריות.",
+        "data": {
+          "categories": "קטגוריות"
+        }
+      },
+      "options": {
+        "title": "הגדרות",
+        "description": "הגדר תדירות סריקה והגדרות מונים.",
+        "data": {
+          "poll_interval": "תדירות סריקה (שניות)",
+          "weekly_reset_day": "יום איפוס מונה שבועי",
+          "enable_nationwide": "הפעל חיישן התרעה ארצי"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "לא ניתן להתחבר ל-API של פיקוד העורף. אם אתה מחוץ לישראל, הגדר כתובת Proxy."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "בחירת אזורים",
+        "description": "בחר מחוזות לניטור.",
+        "data": {
+          "areas": "מחוזות"
+        }
+      },
+      "categories": {
+        "title": "קטגוריות התרעה",
+        "data": {
+          "categories": "קטגוריות"
+        }
+      },
+      "settings": {
+        "title": "הגדרות",
+        "data": {
+          "poll_interval": "תדירות סריקה (שניות)",
+          "weekly_reset_day": "יום איפוס מונה שבועי",
+          "enable_nationwide": "הפעל חיישן התרעה ארצי"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "alert": {
+        "name": "התרעה"
+      },
+      "alert_all": {
+        "name": "התרעה (ארצית)"
+      }
+    },
+    "sensor": {
+      "daily_alert_count": {
+        "name": "מונה התרעות יומי"
+      },
+      "weekly_alert_count": {
+        "name": "מונה התרעות שבועי"
+      },
+      "monthly_alert_count": {
+        "name": "מונה התרעות חודשי"
+      },
+      "yearly_alert_count": {
+        "name": "מונה התרעות שנתי"
+      },
+      "last_alert": {
+        "name": "התרעה אחרונה"
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+name: Update Oref Definitions
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"  # Weekly on Sunday at 06:00 UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update:
+    name: Update Area Definitions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install aiohttp
+
+      - name: Run update script
+        run: python scripts/update_definitions.py
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: update Oref area definitions"
+          title: "Update Oref area definitions"
+          body: |
+            Automated update of Oref area/district definitions.
+            Please review the changes to ensure correctness.
+          branch: auto/update-definitions
+          delete-branch: true

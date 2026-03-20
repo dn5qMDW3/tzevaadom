@@ -1,0 +1,39 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "alert": {
+        "default": "mdi:shield-alert",
+        "state": {
+          "off": "mdi:shield-check"
+        }
+      },
+      "alert_all": {
+        "default": "mdi:shield-alert-outline",
+        "state": {
+          "off": "mdi:shield-check-outline"
+        }
+      }
+    },
+    "sensor": {
+      "daily_alert_count": {
+        "default": "mdi:counter"
+      },
+      "weekly_alert_count": {
+        "default": "mdi:counter"
+      },
+      "monthly_alert_count": {
+        "default": "mdi:counter"
+      },
+      "yearly_alert_count": {
+        "default": "mdi:counter"
+      },
+      "last_alert": {
+        "default": "mdi:alert-circle-outline"
+      }
+    }
+  },
+  "services": {
+    "reset_counters": "mdi:restart",
+    "force_refresh": "mdi:refresh"
+  }
+}

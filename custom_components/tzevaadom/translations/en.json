@@ -1,0 +1,91 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connection",
+        "description": "Configure the connection to Oref alerts API. Leave proxy URL empty for direct connection (Israel only).",
+        "data": {
+          "proxy_url": "Proxy URL (optional)"
+        }
+      },
+      "areas": {
+        "title": "Area Selection",
+        "description": "Select districts to monitor for alerts. Leave empty to monitor all areas.",
+        "data": {
+          "areas": "Districts"
+        }
+      },
+      "categories": {
+        "title": "Alert Categories",
+        "description": "Select which alert categories to monitor. Leave empty for all categories.",
+        "data": {
+          "categories": "Categories"
+        }
+      },
+      "options": {
+        "title": "Settings",
+        "description": "Configure polling and counter settings.",
+        "data": {
+          "poll_interval": "Poll interval (seconds)",
+          "weekly_reset_day": "Weekly counter reset day",
+          "enable_nationwide": "Enable nationwide alert sensor"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to Oref API. If you are outside Israel, configure a proxy URL."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Area Selection",
+        "description": "Select districts to monitor.",
+        "data": {
+          "areas": "Districts"
+        }
+      },
+      "categories": {
+        "title": "Alert Categories",
+        "data": {
+          "categories": "Categories"
+        }
+      },
+      "settings": {
+        "title": "Settings",
+        "data": {
+          "poll_interval": "Poll interval (seconds)",
+          "weekly_reset_day": "Weekly counter reset day",
+          "enable_nationwide": "Enable nationwide alert sensor"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "alert": {
+        "name": "Alert"
+      },
+      "alert_all": {
+        "name": "Alert (Nationwide)"
+      }
+    },
+    "sensor": {
+      "daily_alert_count": {
+        "name": "Daily Alert Count"
+      },
+      "weekly_alert_count": {
+        "name": "Weekly Alert Count"
+      },
+      "monthly_alert_count": {
+        "name": "Monthly Alert Count"
+      },
+      "yearly_alert_count": {
+        "name": "Yearly Alert Count"
+      },
+      "last_alert": {
+        "name": "Last Alert"
+      }
+    }
+  }
+}
