@@ -7,9 +7,9 @@ from typing import Any
 
 from .const import (
     ALERT_CATEGORIES,
+    EARLY_WARNING_TITLES,
     INFORMATIONAL_TITLES,
     OREF_CAT_EVENT_ENDED,
-    OREF_TITLE_EARLY_WARNING,
     OREF_TITLE_EVENT_ENDED,
 )
 
@@ -25,14 +25,24 @@ class OrefAlert:
     data: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> OrefAlert:
-        """Create an OrefAlert from API response dict."""
+    def from_dict(cls, raw: dict) -> OrefAlert:
+        """Create an OrefAlert from API response dict.
+
+        Handles both live endpoint (cat, data=[...]) and history endpoint
+        (category, data="single city") formats.
+        """
+        # 'cat' in live endpoint, 'category' in history endpoint
+        cat = int(raw.get("cat", raw.get("category", 0)))
+        # 'data' can be a list of cities, a single city string, or None
+        cities = raw.get("data") or []
+        if isinstance(cities, str):
+            cities = [cities] if cities else []
         return cls(
-            id=str(data.get("id", "")),
-            cat=int(data.get("cat", 0)),
-            title=data.get("title", ""),
-            desc=data.get("desc", ""),
-            data=data.get("data", []),
+            id=str(raw.get("id", "")),
+            cat=cat,
+            title=raw.get("title", ""),
+            desc=raw.get("desc", ""),
+            data=cities,
         )
 
     @property
@@ -49,7 +59,7 @@ class OrefAlert:
     @property
     def is_early_warning(self) -> bool:
         """Return True if this is an early warning alert."""
-        return self.title == OREF_TITLE_EARLY_WARNING
+        return self.title in EARLY_WARNING_TITLES
 
     @property
     def is_event_ended(self) -> bool:

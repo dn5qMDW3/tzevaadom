@@ -175,8 +175,15 @@ ALERT_CATEGORIES: dict[int, dict[str, str]] = {
 OREF_CAT_EVENT_ENDED = 13
 OREF_TITLE_EVENT_ENDED = "האירוע הסתיים"
 
-# Early Warning title - tracked separately as its own binary sensor
+# Early Warning titles - tracked separately as their own binary sensor
+# "התרעה מקדימה" = classic early warning title
+# "בדקות הקרובות צפויות להתקבל התרעות באזורך" = newer "alerts expected soon" title
 OREF_TITLE_EARLY_WARNING = "התרעה מקדימה"
+OREF_TITLE_EARLY_WARNING_ALT = "בדקות הקרובות צפויות להתקבל התרעות באזורך"
+EARLY_WARNING_TITLES: set[str] = {
+    OREF_TITLE_EARLY_WARNING,
+    OREF_TITLE_EARLY_WARNING_ALT,
+}
 
 # Informational alert titles to exclude from real alert counting
 # Note: Early Warning is NOT here — it's tracked as a separate sensor
