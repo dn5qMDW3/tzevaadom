@@ -1,0 +1,79 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "custom_components/tzevaadom/**"
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check:
+    name: Check if release needed
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check for existing tag
+        id: check
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('custom_components/tzevaadom/manifest.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if git tag -l "v$VERSION" | grep -q .; then
+            echo "Tag v$VERSION already exists — skipping"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "No tag for v$VERSION — will release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  validate:
+    name: Validate
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: home-assistant/actions/hassfest@master
+
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  release:
+    name: Create Release
+    needs: [check, validate]
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check.outputs.version }}
+          generate_release_notes: true
+          files: |
+            custom_components/tzevaadom/manifest.json
