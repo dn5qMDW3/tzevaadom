@@ -10,7 +10,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .api import OrefApiClient, OrefApiError
+from .api import AlertApiClient, OrefApiError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class DefinitionsManager:
             except (json.JSONDecodeError, OSError) as exc:
                 _LOGGER.warning("Failed to load bundled districts: %s", exc)
 
-    async def async_update(self, client: OrefApiClient) -> bool:
+    async def async_update(self, client: AlertApiClient) -> bool:
         """Fetch fresh definitions from Oref. Returns True if updated."""
         try:
             raw_districts = await client.get_districts()

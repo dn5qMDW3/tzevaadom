@@ -27,18 +27,23 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import OrefApiClient
+from .api import AlertApiClient, OrefApiClient, TzofarApiClient
 from .const import (
     ALERT_CATEGORIES,
     CONF_AREAS,
     CONF_CATEGORIES,
     CONF_CITIES,
+    CONF_DATA_SOURCE,
     CONF_ENABLE_NATIONWIDE,
     CONF_POLL_INTERVAL,
     CONF_PROXY_URL,
     CONF_WEEKLY_RESET_DAY,
+    DATA_SOURCE_OREF,
+    DATA_SOURCE_OREF_PROXY,
+    DATA_SOURCE_TZOFAR,
     DEFAULT_ENABLE_NATIONWIDE,
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL_TZOFAR,
     DEFAULT_WEEKLY_RESET_DAY,
     DOMAIN,
 )
@@ -56,43 +61,68 @@ WEEKDAYS = {
     6: "Sunday",
 }
 
+DATA_SOURCE_OPTIONS = [
+    {"label": "Tzofar / tzevaadom.co.il (Worldwide)", "value": DATA_SOURCE_TZOFAR},
+    {"label": "Oref API (Direct - Israel only)", "value": DATA_SOURCE_OREF},
+    {"label": "Oref API via Proxy", "value": DATA_SOURCE_OREF_PROXY},
+]
+
+
+def _create_client(
+    session: Any,
+    data_source: str,
+    proxy_url: str | None = None,
+) -> AlertApiClient:
+    """Create the appropriate API client for the selected data source."""
+    if data_source == DATA_SOURCE_TZOFAR:
+        return TzofarApiClient(session)
+    return OrefApiClient(session, proxy_url)
+
 
 class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for Tzeva Adom."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the config flow."""
+        self._data_source: str = DATA_SOURCE_TZOFAR
         self._proxy_url: str | None = None
         self._selected_areas: list[str] = []
         self._selected_cities: list[str] = []
         self._selected_categories: list[int] = []
         self._definitions: DefinitionsManager | None = None
 
+    def _create_api_client(self) -> AlertApiClient:
+        """Create API client based on current config."""
+        session = async_get_clientsession(self.hass)
+        return _create_client(session, self._data_source, self._proxy_url)
+
     async def _get_definitions(self) -> DefinitionsManager:
         """Get or create definitions manager."""
         if self._definitions is None:
             self._definitions = DefinitionsManager(self.hass)
             await self._definitions.async_load()
-            # Try to fetch fresh definitions
-            session = async_get_clientsession(self.hass)
-            client = OrefApiClient(session, self._proxy_url)
+            # Try to fetch fresh definitions using the selected source
+            client = self._create_api_client()
             await self._definitions.async_update(client)
         return self._definitions
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the connection step."""
+        """Handle data source selection step."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._proxy_url = user_input.get(CONF_PROXY_URL) or None
+            self._data_source = user_input.get(CONF_DATA_SOURCE, DATA_SOURCE_TZOFAR)
 
-            # Test connection
-            session = async_get_clientsession(self.hass)
-            client = OrefApiClient(session, self._proxy_url)
+            if self._data_source == DATA_SOURCE_OREF_PROXY:
+                # Need proxy URL — go to proxy step
+                return await self.async_step_proxy()
+
+            # Test connection directly
+            client = self._create_api_client()
             if await client.test_connection():
                 return await self.async_step_areas()
 
@@ -102,15 +132,47 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PROXY_URL, default=""): TextSelector(
+                    vol.Required(
+                        CONF_DATA_SOURCE, default=DATA_SOURCE_TZOFAR
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=DATA_SOURCE_OPTIONS,
+                            mode=SelectSelectorMode.LIST,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_proxy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle proxy URL input step."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._proxy_url = user_input.get(CONF_PROXY_URL) or None
+
+            if not self._proxy_url:
+                errors[CONF_PROXY_URL] = "proxy_required"
+            else:
+                # Test connection via proxy
+                client = self._create_api_client()
+                if await client.test_connection():
+                    return await self.async_step_areas()
+                errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="proxy",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PROXY_URL, default=""): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.URL)
                     ),
                 }
             ),
             errors=errors,
-            description_placeholders={
-                "note": "Leave proxy URL empty for direct connection (Israel only)."
-            },
         )
 
     async def async_step_areas(
@@ -202,12 +264,20 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._selected_areas
                 )
 
+            # Choose default poll interval based on data source
+            default_interval = (
+                DEFAULT_POLL_INTERVAL_TZOFAR
+                if self._data_source == DATA_SOURCE_TZOFAR
+                else DEFAULT_POLL_INTERVAL
+            )
+
             data = {
+                CONF_DATA_SOURCE: self._data_source,
                 CONF_PROXY_URL: self._proxy_url or "",
                 CONF_AREAS: resolved_areas,
                 CONF_CITIES: self._selected_cities,
                 CONF_CATEGORIES: self._selected_categories,
-                CONF_POLL_INTERVAL: int(user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)),
+                CONF_POLL_INTERVAL: int(user_input.get(CONF_POLL_INTERVAL, default_interval)),
                 CONF_WEEKLY_RESET_DAY: int(user_input.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)),
                 CONF_ENABLE_NATIONWIDE: user_input.get(CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE),
                 "selected_districts": self._selected_areas,
@@ -225,6 +295,14 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
 
             return self.async_create_entry(title=title, data=data)
 
+        # Choose default poll interval based on data source
+        default_interval = (
+            DEFAULT_POLL_INTERVAL_TZOFAR
+            if self._data_source == DATA_SOURCE_TZOFAR
+            else DEFAULT_POLL_INTERVAL
+        )
+        min_interval = 3 if self._data_source == DATA_SOURCE_TZOFAR else 2
+
         weekday_options = [
             {"label": name, "value": str(day)} for day, name in WEEKDAYS.items()
         ]
@@ -234,10 +312,10 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(
-                        CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
+                        CONF_POLL_INTERVAL, default=default_interval
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=2, max=10, step=1, mode=NumberSelectorMode.SLIDER
+                            min=min_interval, max=10, step=1, mode=NumberSelectorMode.SLIDER
                         )
                     ),
                     vol.Optional(

@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import OrefApiClient, OrefApiError
+from .api import AlertApiClient, OrefApiError
 from .const import (
     CONF_AREAS,
     CONF_CATEGORIES,
@@ -32,7 +32,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
     def __init__(
         self,
         hass: HomeAssistant,
-        client: OrefApiClient,
+        client: AlertApiClient,
         config_entry: ConfigEntry,
     ) -> None:
         """Initialize the coordinator."""
@@ -50,6 +50,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             )
         }
         self._seen_alert_ids: set[str] = set()
+        self._seen_alert_ids_all: set[str] = set()
         self._last_data: OrefAlertData = OrefAlertData()
 
         poll_interval = config_entry.options.get(
@@ -105,18 +106,25 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         except OrefApiError as err:
             raise UpdateFailed(f"Error fetching alerts: {err}") from err
 
-        # Parse all alerts
-        all_alerts = [OrefAlert.from_dict(a) for a in raw_alerts]
+        # Parse all alerts and separate real alerts from informational ones
+        all_alerts_raw = [OrefAlert.from_dict(a) for a in raw_alerts]
+        # Keep informational alerts for display but track them separately
+        all_alerts = [a for a in all_alerts_raw if a.is_real_alert]
 
         # Apply filters
         filtered_alerts = [a for a in all_alerts if self._filter_alert(a)]
 
-        # Detect new alerts (not seen before)
+        # Detect new filtered alerts (not seen before)
         current_ids = {a.id for a in filtered_alerts}
         new_alert_ids = current_ids - self._seen_alert_ids
         new_alerts = [a for a in filtered_alerts if a.id in new_alert_ids]
 
-        # Fire events for new alerts
+        # Detect new nationwide alerts (for nationwide counter)
+        current_ids_all = {a.id for a in all_alerts}
+        new_alert_ids_all = current_ids_all - self._seen_alert_ids_all
+        new_alerts_all = [a for a in all_alerts if a.id in new_alert_ids_all]
+
+        # Fire events for new filtered alerts
         for alert in new_alerts:
             self.hass.bus.async_fire(
                 f"{DOMAIN}_alert",
@@ -132,9 +140,11 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         # Update seen IDs - keep only current + recent to avoid unbounded growth
         if all_alerts:
             self._seen_alert_ids = current_ids
+            self._seen_alert_ids_all = current_ids_all
         else:
             # No active alerts - clear seen IDs so next batch is detected as new
             self._seen_alert_ids.clear()
+            self._seen_alert_ids_all.clear()
 
         # Determine last alert
         last_alert = self._last_data.last_alert
@@ -148,6 +158,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             is_active_all=len(all_alerts) > 0,
             last_alert=last_alert,
             new_alerts=new_alerts,
+            new_alerts_all=new_alerts_all,
         )
 
         self._last_data = data

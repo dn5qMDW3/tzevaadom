@@ -2,10 +2,17 @@
   "config": {
     "step": {
       "user": {
-        "title": "חיבור",
-        "description": "הגדר חיבור ל-API של התרעות פיקוד העורף. השאר את כתובת ה-Proxy ריקה לחיבור ישיר (ישראל בלבד).",
+        "title": "מקור נתונים",
+        "description": "בחר את מקור נתוני ההתרעות.\n\n**צופר** עובד בכל העולם ללא הגדרות נוספות.\n**פיקוד העורף ישיר** דורש חיבור מישראל.\n**פיקוד העורף דרך Proxy** מאפשר גישה מחוץ לישראל באמצעות שרת Proxy.",
         "data": {
-          "proxy_url": "כתובת Proxy (אופציונלי)"
+          "data_source": "מקור נתונים"
+        }
+      },
+      "proxy": {
+        "title": "הגדרת Proxy",
+        "description": "הזן את כתובת שרת ה-Proxy לגישה ל-API של פיקוד העורף.",
+        "data": {
+          "proxy_url": "כתובת Proxy"
         }
       },
       "areas": {
@@ -34,7 +41,8 @@
       }
     },
     "error": {
-      "cannot_connect": "לא ניתן להתחבר ל-API של פיקוד העורף. אם אתה מחוץ לישראל, הגדר כתובת Proxy."
+      "cannot_connect": "לא ניתן להתחבר למקור הנתונים שנבחר. בדוק את הרשת או נסה מקור אחר.",
+      "proxy_required": "כתובת Proxy נדרשת בעת שימוש בפיקוד העורף דרך Proxy."
     }
   },
   "options": {
@@ -87,6 +95,18 @@
       },
       "last_alert": {
         "name": "התרעה אחרונה"
+      },
+      "daily_alert_count_nationwide": {
+        "name": "מונה התרעות יומי (ארצי)"
+      },
+      "weekly_alert_count_nationwide": {
+        "name": "מונה התרעות שבועי (ארצי)"
+      },
+      "monthly_alert_count_nationwide": {
+        "name": "מונה התרעות חודשי (ארצי)"
+      },
+      "yearly_alert_count_nationwide": {
+        "name": "מונה התרעות שנתי (ארצי)"
       }
     }
   }

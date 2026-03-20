@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .const import INFORMATIONAL_TITLES, OREF_CAT_EVENT_ENDED, OREF_TITLE_EVENT_ENDED
+
 
 @dataclass
 class OrefAlert:
@@ -26,6 +28,23 @@ class OrefAlert:
             data=data.get("data", []),
         )
 
+    @property
+    def is_real_alert(self) -> bool:
+        """Return True if this is a real alert (not informational).
+
+        Filters out:
+        - Event Ended notifications (Oref cat=13 + title "האירוע הסתיים")
+        - Early Warning messages
+        - Other informational titles
+        """
+        # Oref-specific: cat 13 with "Event Ended" title
+        if self.cat == OREF_CAT_EVENT_ENDED and self.title == OREF_TITLE_EVENT_ENDED:
+            return False
+        # General: filter by known informational titles
+        if self.title in INFORMATIONAL_TITLES:
+            return False
+        return True
+
 
 @dataclass
 class OrefAlertData:
@@ -37,3 +56,4 @@ class OrefAlertData:
     is_active_all: bool = False
     last_alert: OrefAlert | None = None
     new_alerts: list[OrefAlert] = field(default_factory=list)
+    new_alerts_all: list[OrefAlert] = field(default_factory=list)

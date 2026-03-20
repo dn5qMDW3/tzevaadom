@@ -11,10 +11,14 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import OrefApiClient
+from .api import AlertApiClient, OrefApiClient, TzofarApiClient
 from .const import (
+    CONF_DATA_SOURCE,
     CONF_PROXY_URL,
     CONF_WEEKLY_RESET_DAY,
+    DATA_SOURCE_OREF,
+    DATA_SOURCE_OREF_PROXY,
+    DATA_SOURCE_TZOFAR,
     DEFAULT_WEEKLY_RESET_DAY,
     DOMAIN,
     PLATFORMS,
@@ -28,14 +32,49 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS_LIST: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
+def create_api_client(
+    session: any,
+    entry_data: dict,
+) -> AlertApiClient:
+    """Create the appropriate API client based on config entry data."""
+    data_source = entry_data.get(CONF_DATA_SOURCE, DATA_SOURCE_OREF)
+    if data_source == DATA_SOURCE_TZOFAR:
+        return TzofarApiClient(session)
+    proxy_url = entry_data.get(CONF_PROXY_URL) or None
+    return OrefApiClient(session, proxy_url)
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate config entry from older versions."""
+    if config_entry.version < 2:
+        _LOGGER.info(
+            "Migrating config entry %s from version %d to 2",
+            config_entry.entry_id,
+            config_entry.version,
+        )
+        new_data = {**config_entry.data}
+        # Determine data source from existing config
+        if new_data.get(CONF_PROXY_URL):
+            new_data[CONF_DATA_SOURCE] = DATA_SOURCE_OREF_PROXY
+        else:
+            new_data[CONF_DATA_SOURCE] = DATA_SOURCE_OREF
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, version=2
+        )
+        _LOGGER.info(
+            "Migration complete: data_source=%s", new_data[CONF_DATA_SOURCE]
+        )
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tzeva Adom from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Create API client
+    # Create API client based on configured data source
     session = async_get_clientsession(hass)
-    proxy_url = entry.data.get(CONF_PROXY_URL) or None
-    client = OrefApiClient(session, proxy_url)
+    client = create_api_client(session, entry.data)
 
     # Create coordinator
     coordinator = OrefDataUpdateCoordinator(hass, client, entry)

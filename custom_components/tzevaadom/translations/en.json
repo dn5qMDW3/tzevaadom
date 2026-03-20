@@ -2,10 +2,17 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connection",
-        "description": "Configure the connection to Oref alerts API. Leave proxy URL empty for direct connection (Israel only).",
+        "title": "Data Source",
+        "description": "Choose the alert data source.\n\n**Tzofar** works worldwide with no extra setup.\n**Oref Direct** requires a connection from Israel.\n**Oref via Proxy** lets you use a proxy server for Oref access outside Israel.",
         "data": {
-          "proxy_url": "Proxy URL (optional)"
+          "data_source": "Data source"
+        }
+      },
+      "proxy": {
+        "title": "Proxy Configuration",
+        "description": "Enter the URL of your Oref API proxy server.",
+        "data": {
+          "proxy_url": "Proxy URL"
         }
       },
       "areas": {
@@ -34,7 +41,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Cannot connect to Oref API. If you are outside Israel, configure a proxy URL."
+      "cannot_connect": "Cannot connect to the selected data source. Check your network or try a different source.",
+      "proxy_required": "Proxy URL is required when using Oref via Proxy."
     }
   },
   "options": {
@@ -87,6 +95,18 @@
       },
       "last_alert": {
         "name": "Last Alert"
+      },
+      "daily_alert_count_nationwide": {
+        "name": "Daily Alert Count (Nationwide)"
+      },
+      "weekly_alert_count_nationwide": {
+        "name": "Weekly Alert Count (Nationwide)"
+      },
+      "monthly_alert_count_nationwide": {
+        "name": "Monthly Alert Count (Nationwide)"
+      },
+      "yearly_alert_count_nationwide": {
+        "name": "Yearly Alert Count (Nationwide)"
       }
     }
   }

@@ -20,7 +20,12 @@ MAX_TRACKED_IDS = 200
 
 
 class AlertCounterManager:
-    """Manages daily/weekly/monthly/yearly alert counters with persistence."""
+    """Manages daily/weekly/monthly/yearly alert counters with persistence.
+
+    Tracks two sets of counters:
+    - Filtered counters: only count alerts matching user's area/city/category filters
+    - Nationwide counters: count all real alerts regardless of filters
+    """
 
     def __init__(
         self,
@@ -35,12 +40,19 @@ class AlertCounterManager:
         )
         self._weekly_reset_day = weekly_reset_day
         self._counted_ids: deque[str] = deque(maxlen=MAX_TRACKED_IDS)
+        self._counted_ids_nationwide: deque[str] = deque(maxlen=MAX_TRACKED_IDS)
 
-        # Counter values
+        # Filtered counter values
         self.daily_count: int = 0
         self.weekly_count: int = 0
         self.monthly_count: int = 0
         self.yearly_count: int = 0
+
+        # Nationwide counter values
+        self.daily_count_nationwide: int = 0
+        self.weekly_count_nationwide: int = 0
+        self.monthly_count_nationwide: int = 0
+        self.yearly_count_nationwide: int = 0
 
         # Period tracking
         self._current_date: str = ""
@@ -59,12 +71,21 @@ class AlertCounterManager:
         self.weekly_count = data.get("weekly_count", 0)
         self.monthly_count = data.get("monthly_count", 0)
         self.yearly_count = data.get("yearly_count", 0)
+
+        self.daily_count_nationwide = data.get("daily_count_nationwide", 0)
+        self.weekly_count_nationwide = data.get("weekly_count_nationwide", 0)
+        self.monthly_count_nationwide = data.get("monthly_count_nationwide", 0)
+        self.yearly_count_nationwide = data.get("yearly_count_nationwide", 0)
+
         self._current_date = data.get("current_date", "")
         self._current_week_start = data.get("current_week_start", "")
         self._current_month = data.get("current_month", "")
         self._current_year = data.get("current_year", 0)
         self._counted_ids = deque(
             data.get("counted_ids", []), maxlen=MAX_TRACKED_IDS
+        )
+        self._counted_ids_nationwide = deque(
+            data.get("counted_ids_nationwide", []), maxlen=MAX_TRACKED_IDS
         )
 
         # Check for period rollovers since last save
@@ -97,25 +118,29 @@ class AlertCounterManager:
         if current_date != self._current_date:
             _LOGGER.debug("Daily counter rollover: %s -> %s", self._current_date, current_date)
             self.daily_count = 0
+            self.daily_count_nationwide = 0
             self._current_date = current_date
 
         if current_week_start != self._current_week_start:
             _LOGGER.debug("Weekly counter rollover")
             self.weekly_count = 0
+            self.weekly_count_nationwide = 0
             self._current_week_start = current_week_start
 
         if current_month != self._current_month:
             _LOGGER.debug("Monthly counter rollover: %s -> %s", self._current_month, current_month)
             self.monthly_count = 0
+            self.monthly_count_nationwide = 0
             self._current_month = current_month
 
         if current_year != self._current_year:
             _LOGGER.debug("Yearly counter rollover: %s -> %s", self._current_year, current_year)
             self.yearly_count = 0
+            self.yearly_count_nationwide = 0
             self._current_year = current_year
 
     def record_alert(self, alert_id: str) -> bool:
-        """Record an alert. Returns True if it was a new alert."""
+        """Record a filtered alert. Returns True if it was a new alert."""
         if alert_id in self._counted_ids:
             return False
 
@@ -128,13 +153,32 @@ class AlertCounterManager:
         self.yearly_count += 1
         return True
 
+    def record_alert_nationwide(self, alert_id: str) -> bool:
+        """Record a nationwide alert. Returns True if it was a new alert."""
+        if alert_id in self._counted_ids_nationwide:
+            return False
+
+        self._check_rollovers()
+
+        self._counted_ids_nationwide.append(alert_id)
+        self.daily_count_nationwide += 1
+        self.weekly_count_nationwide += 1
+        self.monthly_count_nationwide += 1
+        self.yearly_count_nationwide += 1
+        return True
+
     def reset_all(self) -> None:
         """Reset all counters."""
         self.daily_count = 0
         self.weekly_count = 0
         self.monthly_count = 0
         self.yearly_count = 0
+        self.daily_count_nationwide = 0
+        self.weekly_count_nationwide = 0
+        self.monthly_count_nationwide = 0
+        self.yearly_count_nationwide = 0
         self._counted_ids.clear()
+        self._counted_ids_nationwide.clear()
         self._init_periods()
 
     async def async_save(self) -> None:
@@ -145,10 +189,15 @@ class AlertCounterManager:
                 "weekly_count": self.weekly_count,
                 "monthly_count": self.monthly_count,
                 "yearly_count": self.yearly_count,
+                "daily_count_nationwide": self.daily_count_nationwide,
+                "weekly_count_nationwide": self.weekly_count_nationwide,
+                "monthly_count_nationwide": self.monthly_count_nationwide,
+                "yearly_count_nationwide": self.yearly_count_nationwide,
                 "current_date": self._current_date,
                 "current_week_start": self._current_week_start,
                 "current_month": self._current_month,
                 "current_year": self._current_year,
                 "counted_ids": list(self._counted_ids),
+                "counted_ids_nationwide": list(self._counted_ids_nationwide),
             }
         )

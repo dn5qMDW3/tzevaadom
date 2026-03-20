@@ -4,7 +4,13 @@ from __future__ import annotations
 
 DOMAIN = "tzevaadom"
 
-# Oref API endpoints
+# --- Data source configuration ---
+CONF_DATA_SOURCE = "data_source"
+DATA_SOURCE_OREF = "oref"
+DATA_SOURCE_TZOFAR = "tzofar"
+DATA_SOURCE_OREF_PROXY = "oref_proxy"
+
+# --- Oref API endpoints ---
 OREF_BASE_URL = "https://www.oref.org.il"
 OREF_ALERTS_URL = f"{OREF_BASE_URL}/WarningMessages/alert/alerts.json"
 OREF_HISTORY_URL = f"{OREF_BASE_URL}/WarningMessages/alert/History/AlertsHistory.json"
@@ -15,6 +21,64 @@ OREF_HEADERS = {
     "Referer": "https://www.oref.org.il/",
     "X-Requested-With": "XMLHttpRequest",
     "Accept": "application/json",
+}
+
+# --- Tzofar API endpoints (tzevaadom.co.il) ---
+TZOFAR_API_BASE = "https://api.tzevaadom.co.il"
+TZOFAR_ALERTS_URL = f"{TZOFAR_API_BASE}/notifications"
+TZOFAR_HISTORY_URL = f"{TZOFAR_API_BASE}/alerts-history/"
+TZOFAR_VERSIONS_URL = f"{TZOFAR_API_BASE}/lists-versions"
+TZOFAR_CITIES_URL = "https://www.tzevaadom.co.il/static/cities.json"
+
+# Tzofar threat ID → Oref category ID mapping
+# Based on THREATS_TITLES in tzevaadom.co.il/tzofar-site/static/js/app.js
+TZOFAR_THREAT_TO_OREF_CAT: dict[int, int] = {
+    0: 1,   # צבע אדום (Red Alert) → Rockets and Missiles
+    1: 5,   # חומרים מסוכנים → Hazardous Materials
+    2: 6,   # חדירת מחבלים → Terrorist Infiltration
+    3: 3,   # רעידת אדמה → Earthquake
+    4: 4,   # צונאמי → Tsunami
+    5: 2,   # חדירת כלי טיס עוין → Hostile Aircraft Intrusion
+    6: 7,   # אירוע רדיולוגי → Radiological Event
+    7: 14,  # ירי בלתי קונבנציונלי → Special Announcement
+    8: 14,  # התרעה (General Alert) → Special Announcement
+}
+# When isDrill=True, shift base categories 1-6 to their drill equivalents 8-13
+TZOFAR_DRILL_CAT_OFFSET = 7
+
+# Tzofar area ID → Hebrew district name
+# Cross-referenced from Oref districts and Tzofar cities.json
+TZOFAR_AREA_NAMES: dict[int, str] = {
+    1: "גליל עליון",
+    2: "מרכז הנגב",
+    3: "שפלת יהודה",
+    4: "בקעת בית שאן",
+    5: "חדרה",
+    6: "קו העימות",
+    7: "לכיש",
+    9: "שרון",
+    10: "גולן",
+    11: "שומרון",
+    12: "ים המלח",
+    13: "עוטף עזה",
+    14: "דרום הנגב",
+    15: "מנשה",
+    16: "גליל תחתון",
+    17: "מערב הנגב",
+    18: "גוש דן",
+    19: "חיפה",
+    20: "ירקון",
+    21: "אשקלון",
+    22: "יערות הכרמל",
+    23: "השפלה",
+    24: "באר שבע",
+    25: "בקעת הירדן",
+    26: "אילת",
+    27: "ערבה",
+    28: "קצרין",
+    29: "בקעה",
+    32: "ירושלים",
+    34: "העמקים",
 }
 
 # Config keys
@@ -28,6 +92,7 @@ CONF_PROXY_URL = "proxy_url"
 
 # Defaults
 DEFAULT_POLL_INTERVAL = 2  # seconds
+DEFAULT_POLL_INTERVAL_TZOFAR = 3  # seconds (matches Tzofar's backup poll rate)
 DEFAULT_WEEKLY_RESET_DAY = 6  # Sunday (0=Monday in Python, 6=Sunday)
 DEFAULT_ENABLE_NATIONWIDE = True
 
@@ -103,6 +168,17 @@ ALERT_CATEGORIES: dict[int, dict[str, str]] = {
         "en": "Special Announcement",
         "icon": "mdi:alert-circle",
     },
+}
+
+# Oref informational alert categories (not real alerts - should not be counted)
+# cat=13 with title "האירוע הסתיים" = "Event Ended" notification
+OREF_CAT_EVENT_ENDED = 13
+OREF_TITLE_EVENT_ENDED = "האירוע הסתיים"
+
+# Informational alert titles to exclude from counting (both APIs)
+INFORMATIONAL_TITLES: set[str] = {
+    "האירוע הסתיים",  # Event Ended
+    "התרעה מקדימה",   # Early Warning
 }
 
 # Platforms

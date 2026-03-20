@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import ALERT_CATEGORIES, DOMAIN
+from .const import ALERT_CATEGORIES, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
 from .coordinator import OrefDataUpdateCoordinator
 from .counters import AlertCounterManager
 from .entity import TzevaadomEntity
@@ -24,19 +24,32 @@ async def async_setup_entry(
     coordinator: OrefDataUpdateCoordinator = entry_data["coordinator"]
     counter_manager: AlertCounterManager = entry_data["counter_manager"]
 
-    async_add_entities(
-        [
-            TzevaadomCounterSensor(coordinator, counter_manager, "daily"),
-            TzevaadomCounterSensor(coordinator, counter_manager, "weekly"),
-            TzevaadomCounterSensor(coordinator, counter_manager, "monthly"),
-            TzevaadomCounterSensor(coordinator, counter_manager, "yearly"),
-            TzevaadomLastAlertSensor(coordinator),
-        ]
+    entities: list[SensorEntity] = [
+        TzevaadomCounterSensor(coordinator, counter_manager, "daily"),
+        TzevaadomCounterSensor(coordinator, counter_manager, "weekly"),
+        TzevaadomCounterSensor(coordinator, counter_manager, "monthly"),
+        TzevaadomCounterSensor(coordinator, counter_manager, "yearly"),
+        TzevaadomLastAlertSensor(coordinator),
+    ]
+
+    # Add nationwide counters if enabled
+    enable_nationwide = config_entry.options.get(
+        CONF_ENABLE_NATIONWIDE,
+        config_entry.data.get(CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE),
     )
+    if enable_nationwide:
+        entities.extend([
+            TzevaadomNationwideCounterSensor(coordinator, counter_manager, "daily"),
+            TzevaadomNationwideCounterSensor(coordinator, counter_manager, "weekly"),
+            TzevaadomNationwideCounterSensor(coordinator, counter_manager, "monthly"),
+            TzevaadomNationwideCounterSensor(coordinator, counter_manager, "yearly"),
+        ])
+
+    async_add_entities(entities)
 
 
 class TzevaadomCounterSensor(TzevaadomEntity, RestoreEntity, SensorEntity):
-    """Sensor for alert counters (daily/weekly/monthly/yearly)."""
+    """Sensor for filtered alert counters (daily/weekly/monthly/yearly)."""
 
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:counter"
@@ -87,6 +100,68 @@ class TzevaadomCounterSensor(TzevaadomEntity, RestoreEntity, SensorEntity):
         if self.coordinator.data and self.coordinator.data.new_alerts:
             for alert in self.coordinator.data.new_alerts:
                 self._counter_manager.record_alert(alert.id)
+            self.hass.async_create_task(self._counter_manager.async_save())
+        self.async_write_ha_state()
+
+
+class TzevaadomNationwideCounterSensor(TzevaadomEntity, RestoreEntity, SensorEntity):
+    """Sensor for nationwide alert counters (daily/weekly/monthly/yearly)."""
+
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:counter"
+
+    def __init__(
+        self,
+        coordinator: OrefDataUpdateCoordinator,
+        counter_manager: AlertCounterManager,
+        period: str,
+    ) -> None:
+        """Initialize the nationwide counter sensor."""
+        super().__init__(coordinator)
+        self._counter_manager = counter_manager
+        self._period = period
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_{period}_count_nationwide"
+        )
+        self._attr_translation_key = f"{period}_alert_count_nationwide"
+
+    @property
+    def native_value(self) -> int:
+        """Return the nationwide counter value."""
+        return getattr(self._counter_manager, f"{self._period}_count_nationwide", 0)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, any]:
+        """Return counter metadata."""
+        return {
+            "period": self._period,
+            "scope": "nationwide",
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Restore state on startup."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            try:
+                restored = int(last_state.state)
+                current = getattr(
+                    self._counter_manager, f"{self._period}_count_nationwide", 0
+                )
+                if current == 0 and restored > 0:
+                    setattr(
+                        self._counter_manager,
+                        f"{self._period}_count_nationwide",
+                        restored,
+                    )
+            except (ValueError, TypeError):
+                pass
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if self.coordinator.data and self.coordinator.data.new_alerts_all:
+            for alert in self.coordinator.data.new_alerts_all:
+                self._counter_manager.record_alert_nationwide(alert.id)
             self.hass.async_create_task(self._counter_manager.async_save())
         self.async_write_ha_state()
 
