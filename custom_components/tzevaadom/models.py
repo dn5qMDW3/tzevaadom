@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .const import INFORMATIONAL_TITLES, OREF_CAT_EVENT_ENDED, OREF_TITLE_EVENT_ENDED
+from .const import (
+    INFORMATIONAL_TITLES,
+    OREF_CAT_EVENT_ENDED,
+    OREF_TITLE_EARLY_WARNING,
+    OREF_TITLE_EVENT_ENDED,
+)
 
 
 @dataclass
@@ -34,16 +39,26 @@ class OrefAlert:
 
         Filters out:
         - Event Ended notifications (Oref cat=13 + title "האירוע הסתיים")
-        - Early Warning messages
+        - Early Warning messages ("התרעה מקדימה")
         - Other informational titles
         """
-        # Oref-specific: cat 13 with "Event Ended" title
-        if self.cat == OREF_CAT_EVENT_ENDED and self.title == OREF_TITLE_EVENT_ENDED:
+        if self.is_event_ended:
             return False
-        # General: filter by known informational titles
+        if self.is_early_warning:
+            return False
         if self.title in INFORMATIONAL_TITLES:
             return False
         return True
+
+    @property
+    def is_early_warning(self) -> bool:
+        """Return True if this is an early warning alert."""
+        return self.title == OREF_TITLE_EARLY_WARNING
+
+    @property
+    def is_event_ended(self) -> bool:
+        """Return True if this is an 'Event Ended' notification."""
+        return self.cat == OREF_CAT_EVENT_ENDED and self.title == OREF_TITLE_EVENT_ENDED
 
 
 @dataclass
@@ -57,3 +72,9 @@ class OrefAlertData:
     last_alert: OrefAlert | None = None
     new_alerts: list[OrefAlert] = field(default_factory=list)
     new_alerts_all: list[OrefAlert] = field(default_factory=list)
+    # Early warning tracking
+    early_warnings: list[OrefAlert] = field(default_factory=list)
+    is_early_warning_active: bool = False
+    new_early_warnings: list[OrefAlert] = field(default_factory=list)
+    # Event ended tracking
+    event_ended_cities: list[str] = field(default_factory=list)

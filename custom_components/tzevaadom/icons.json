@@ -12,6 +12,12 @@
         "state": {
           "off": "mdi:shield-check-outline"
         }
+      },
+      "early_warning": {
+        "default": "mdi:alert-octagon",
+        "state": {
+          "off": "mdi:alert-octagon-outline"
+        }
       }
     },
     "sensor": {

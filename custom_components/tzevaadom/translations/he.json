@@ -78,6 +78,9 @@
       },
       "alert_all": {
         "name": "התרעה (ארצית)"
+      },
+      "early_warning": {
+        "name": "התרעה מקדימה"
       }
     },
     "sensor": {

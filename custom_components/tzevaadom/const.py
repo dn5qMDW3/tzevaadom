@@ -175,11 +175,18 @@ ALERT_CATEGORIES: dict[int, dict[str, str]] = {
 OREF_CAT_EVENT_ENDED = 13
 OREF_TITLE_EVENT_ENDED = "האירוע הסתיים"
 
-# Informational alert titles to exclude from counting (both APIs)
+# Early Warning title - tracked separately as its own binary sensor
+OREF_TITLE_EARLY_WARNING = "התרעה מקדימה"
+
+# Informational alert titles to exclude from real alert counting
+# Note: Early Warning is NOT here — it's tracked as a separate sensor
 INFORMATIONAL_TITLES: set[str] = {
     "האירוע הסתיים",  # Event Ended
-    "התרעה מקדימה",   # Early Warning
 }
+
+# Event names for Home Assistant bus
+EVENT_TZEVAADOM_ALERT = f"{DOMAIN}_alert"
+EVENT_TZEVAADOM_EARLY_WARNING = f"{DOMAIN}_early_warning"
 
 # Platforms
 PLATFORMS = ["binary_sensor", "sensor"]

@@ -78,6 +78,9 @@
       },
       "alert_all": {
         "name": "Alert (Nationwide)"
+      },
+      "early_warning": {
+        "name": "Early Warning"
       }
     },
     "sensor": {
