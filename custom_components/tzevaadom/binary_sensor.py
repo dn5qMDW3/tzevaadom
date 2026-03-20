@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -19,6 +21,7 @@ from .const import (
 )
 from .coordinator import OrefDataUpdateCoordinator
 from .entity import TzevaadomEntity
+from .helpers import get_entry_option
 
 
 async def async_setup_entry(
@@ -36,9 +39,8 @@ async def async_setup_entry(
         TzevaadomEarlyWarningBinarySensor(coordinator),
     ]
 
-    enable_nationwide = config_entry.options.get(
-        CONF_ENABLE_NATIONWIDE,
-        config_entry.data.get(CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE),
+    enable_nationwide = get_entry_option(
+        config_entry, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
     )
     if enable_nationwide:
         entities.append(TzevaadomAlertBinarySensor(coordinator, filtered=False))
@@ -73,6 +75,16 @@ class TzevaadomAlertBinarySensor(TzevaadomEntity, BinarySensorEntity):
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{suffix}"
         self._attr_translation_key = suffix
 
+    def _get_alerts(self) -> list:
+        """Return the relevant alerts list."""
+        if self.coordinator.data is None:
+            return []
+        return (
+            self.coordinator.data.active_alerts
+            if self._filtered
+            else self.coordinator.data.all_alerts
+        )
+
     @property
     def is_on(self) -> bool | None:
         """Return true if alert is active."""
@@ -83,54 +95,23 @@ class TzevaadomAlertBinarySensor(TzevaadomEntity, BinarySensorEntity):
         return self.coordinator.data.is_active_all
 
     @property
-    def extra_state_attributes(self) -> dict[str, any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional alert details."""
-        if self.coordinator.data is None:
-            return {}
-
-        alerts = (
-            self.coordinator.data.active_alerts
-            if self._filtered
-            else self.coordinator.data.all_alerts
-        )
-
+        alerts = self._get_alerts()
         if not alerts:
-            return {
-                "alert_count": 0,
-                "cities": [],
-            }
+            return {"alert_count": 0, "cities": []}
 
-        alert = alerts[0]
-        category_info = ALERT_CATEGORIES.get(alert.cat, {})
-
-        return {
-            "alert_id": alert.id,
-            "category": alert.cat,
-            "category_name_he": category_info.get("he", ""),
-            "category_name_en": category_info.get("en", ""),
-            "title": alert.title,
-            "description": alert.desc,
-            "cities": alert.data,
-            "alert_count": len(alerts),
-        }
+        attrs = alerts[0].to_state_attributes()
+        attrs["alert_count"] = len(alerts)
+        return attrs
 
     @property
     def icon(self) -> str:
         """Return icon based on alert category."""
-        if self.coordinator.data is None or not (
-            self.coordinator.data.active_alerts
-            if self._filtered
-            else self.coordinator.data.all_alerts
-        ):
+        alerts = self._get_alerts()
+        if not alerts:
             return "mdi:shield-check"
-
-        alerts = (
-            self.coordinator.data.active_alerts
-            if self._filtered
-            else self.coordinator.data.all_alerts
-        )
-        cat = alerts[0].cat
-        return ALERT_CATEGORIES.get(cat, {}).get("icon", "mdi:alert")
+        return alerts[0].category_icon
 
 
 class TzevaadomEarlyWarningBinarySensor(TzevaadomEntity, BinarySensorEntity):
@@ -155,19 +136,15 @@ class TzevaadomEarlyWarningBinarySensor(TzevaadomEntity, BinarySensorEntity):
         return self.coordinator.data.is_early_warning_active
 
     @property
-    def extra_state_attributes(self) -> dict[str, any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return early warning details."""
         if self.coordinator.data is None:
             return {}
 
         warnings = self.coordinator.data.early_warnings
         if not warnings:
-            return {
-                "alert_count": 0,
-                "cities": [],
-            }
+            return {"alert_count": 0, "cities": []}
 
-        # Collect all cities from all early warnings
         all_cities = []
         for w in warnings:
             all_cities.extend(w.data)
@@ -205,46 +182,47 @@ class TzevaadomCategoryBinarySensor(TzevaadomEntity, BinarySensorEntity):
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_alert_cat_{cat_id}"
         self._attr_translation_key = f"alert_cat_{cat_id}"
         self._attr_entity_registry_enabled_default = enabled_default
+        self._cached_alerts: list = []
 
-    def _get_category_alerts(self) -> list:
-        """Return active alerts matching this category."""
-        if self.coordinator.data is None:
-            return []
-        return [a for a in self.coordinator.data.active_alerts if a.cat == self._cat_id]
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Cache category alerts on coordinator update."""
+        if self.coordinator.data is not None:
+            self._cached_alerts = [
+                a for a in self.coordinator.data.active_alerts
+                if a.cat == self._cat_id
+            ]
+        else:
+            self._cached_alerts = []
+        self.async_write_ha_state()
 
     @property
     def is_on(self) -> bool | None:
         """Return true if alert of this category is active."""
         if self.coordinator.data is None:
             return None
-        return len(self._get_category_alerts()) > 0
+        return len(self._cached_alerts) > 0
 
     @property
-    def extra_state_attributes(self) -> dict[str, any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return category alert details."""
-        alerts = self._get_category_alerts()
-        if not alerts:
-            return {
-                "alert_count": 0,
-                "cities": [],
-                "category_id": self._cat_id,
-                "category_name_he": self._category_info.get("he", ""),
-                "category_name_en": self._category_info.get("en", ""),
-            }
-
-        all_cities = []
-        for alert in alerts:
-            all_cities.extend(alert.data)
-
-        return {
-            "alert_count": len(alerts),
-            "cities": all_cities,
+        base = {
+            "alert_count": len(self._cached_alerts),
             "category_id": self._cat_id,
             "category_name_he": self._category_info.get("he", ""),
             "category_name_en": self._category_info.get("en", ""),
-            "title": alerts[0].title,
-            "description": alerts[0].desc,
         }
+        if not self._cached_alerts:
+            base["cities"] = []
+            return base
+
+        all_cities = []
+        for alert in self._cached_alerts:
+            all_cities.extend(alert.data)
+        base["cities"] = all_cities
+        base["title"] = self._cached_alerts[0].title
+        base["description"] = self._cached_alerts[0].desc
+        return base
 
     @property
     def icon(self) -> str:

@@ -27,7 +27,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import AlertApiClient, OrefApiClient, TzofarApiClient
+from .api import AlertApiClient
 from .const import (
     ALERT_CATEGORIES,
     CONF_AREAS,
@@ -48,6 +48,7 @@ from .const import (
     DOMAIN,
 )
 from .definitions import DefinitionsManager
+from .helpers import get_entry_option, validate_proxy_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,17 +69,6 @@ DATA_SOURCE_OPTIONS = [
 ]
 
 
-def _create_client(
-    session: Any,
-    data_source: str,
-    proxy_url: str | None = None,
-) -> AlertApiClient:
-    """Create the appropriate API client for the selected data source."""
-    if data_source == DATA_SOURCE_TZOFAR:
-        return TzofarApiClient(session)
-    return OrefApiClient(session, proxy_url)
-
-
 class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for Tzeva Adom."""
 
@@ -95,8 +85,10 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _create_api_client(self) -> AlertApiClient:
         """Create API client based on current config."""
+        from . import create_api_client  # noqa: C0415
+
         session = async_get_clientsession(self.hass)
-        return _create_client(session, self._data_source, self._proxy_url)
+        return create_api_client(session, self._data_source, self._proxy_url)
 
     async def _get_definitions(self) -> DefinitionsManager:
         """Get or create definitions manager."""
@@ -157,11 +149,16 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
             if not self._proxy_url:
                 errors[CONF_PROXY_URL] = "proxy_required"
             else:
-                # Test connection via proxy
-                client = self._create_api_client()
-                if await client.test_connection():
-                    return await self.async_step_areas()
-                errors["base"] = "cannot_connect"
+                # Validate URL scheme before attempting connection
+                url_error = validate_proxy_url(self._proxy_url)
+                if url_error:
+                    errors[CONF_PROXY_URL] = url_error
+                else:
+                    # Test connection via proxy
+                    client = self._create_api_client()
+                    if await client.test_connection():
+                        return await self.async_step_areas()
+                    errors["base"] = "cannot_connect"
 
         return self.async_show_form(
             step_id="proxy",
@@ -374,10 +371,7 @@ class TzevaadomOptionsFlow(OptionsFlow):
         city_options = definitions.get_all_cities()
 
         current_districts = self._config_entry.data.get("selected_districts", [])
-        current_cities = self._config_entry.options.get(
-            CONF_CITIES,
-            self._config_entry.data.get(CONF_CITIES, []),
-        )
+        current_cities = get_entry_option(self._config_entry, CONF_CITIES, [])
 
         return self.async_show_form(
             step_id="init",
@@ -476,9 +470,8 @@ class TzevaadomOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(
                         CONF_POLL_INTERVAL,
-                        default=self._config_entry.options.get(
-                            CONF_POLL_INTERVAL,
-                            self._config_entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                        default=get_entry_option(
+                            self._config_entry, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
                         ),
                     ): NumberSelector(
                         NumberSelectorConfig(
@@ -488,9 +481,8 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_WEEKLY_RESET_DAY,
                         default=str(
-                            self._config_entry.options.get(
-                                CONF_WEEKLY_RESET_DAY,
-                                self._config_entry.data.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY),
+                            get_entry_option(
+                                self._config_entry, CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY
                             )
                         ),
                     ): SelectSelector(
@@ -501,9 +493,8 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_ENABLE_NATIONWIDE,
-                        default=self._config_entry.options.get(
-                            CONF_ENABLE_NATIONWIDE,
-                            self._config_entry.data.get(CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE),
+                        default=get_entry_option(
+                            self._config_entry, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
                         ),
                     ): bool,
                 }

@@ -42,7 +42,8 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to the selected data source. Check your network or try a different source.",
-      "proxy_required": "Proxy URL is required when using Oref via Proxy."
+      "proxy_required": "Proxy URL is required when using Oref via Proxy.",
+      "proxy_invalid_scheme": "Proxy URL must start with http:// or https://."
     }
   },
   "options": {

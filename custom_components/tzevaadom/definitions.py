@@ -147,13 +147,14 @@ class DefinitionsManager:
         """Build area-to-district lookup."""
         self._area_to_district.clear()
         for entry in self._districts:
+            district = entry.get("district", "")
             for area in entry.get("areas", []):
-                self._area_to_district[area] = entry["district"]
+                self._area_to_district[area] = district
 
     def get_districts(self) -> list[str]:
         """Get list of district names."""
         if self._districts:
-            return [d["district"] for d in self._districts]
+            return [d.get("district", "") for d in self._districts if d.get("district")]
         return DEFAULT_DISTRICTS
 
     def get_areas_for_district(self, district: str) -> list[str]:
@@ -165,16 +166,14 @@ class DefinitionsManager:
 
     def get_all_areas(self) -> list[str]:
         """Get all known area names."""
-        areas = []
-        for entry in self._districts:
-            areas.extend(entry.get("areas", []))
-        return sorted(areas)
+        return self.get_areas_for_districts(self.get_districts())
 
     def get_areas_for_districts(self, districts: list[str]) -> list[str]:
         """Get all areas belonging to the given districts."""
-        areas = []
+        district_set = set(districts)
+        areas: list[str] = []
         for entry in self._districts:
-            if entry["district"] in districts:
+            if entry.get("district", "") in district_set:
                 areas.extend(entry.get("areas", []))
         return sorted(areas)
 
@@ -183,13 +182,15 @@ class DefinitionsManager:
 
         Returns list of {"label": "city (district)", "value": "city"}.
         """
+        district_set = set(districts)
         cities: list[dict[str, str]] = []
         for entry in self._districts:
-            if entry["district"] in districts:
+            district = entry.get("district", "")
+            if district in district_set:
                 for area in entry.get("areas", []):
                     cities.append(
                         {
-                            "label": f"{area} ({entry['district']})",
+                            "label": f"{area} ({district})",
                             "value": area,
                         }
                     )
@@ -200,13 +201,4 @@ class DefinitionsManager:
 
         Returns list of {"label": "city (district)", "value": "city"}.
         """
-        cities: list[dict[str, str]] = []
-        for entry in self._districts:
-            for area in entry.get("areas", []):
-                cities.append(
-                    {
-                        "label": f"{area} ({entry['district']})",
-                        "value": area,
-                    }
-                )
-        return sorted(cities, key=lambda c: c["label"])
+        return self.get_cities_for_districts(self.get_districts())

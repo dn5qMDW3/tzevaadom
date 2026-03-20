@@ -20,6 +20,7 @@ from .const import (
     EVENT_TZEVAADOM_ALERT,
     EVENT_TZEVAADOM_EARLY_WARNING,
 )
+from .helpers import get_entry_option
 from .models import OrefAlert, OrefAlertData
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,26 +39,25 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
     ) -> None:
         """Initialize the coordinator."""
         self.client = client
+        # Note: _selected_areas contains city-level names resolved from districts
+        # (resolved during config flow via definitions.get_areas_for_districts)
         self._selected_areas: set[str] = set(
-            config_entry.options.get(CONF_AREAS, config_entry.data.get(CONF_AREAS, []))
+            get_entry_option(config_entry, CONF_AREAS, [])
         )
         self._selected_cities: set[str] = set(
-            config_entry.options.get(CONF_CITIES, config_entry.data.get(CONF_CITIES, []))
+            get_entry_option(config_entry, CONF_CITIES, [])
         )
         self._selected_categories: set[int] = {
             int(c)
-            for c in config_entry.options.get(
-                CONF_CATEGORIES, config_entry.data.get(CONF_CATEGORIES, [])
-            )
+            for c in get_entry_option(config_entry, CONF_CATEGORIES, [])
         }
         self._seen_alert_ids: set[str] = set()
         self._seen_alert_ids_all: set[str] = set()
         self._seen_early_warning_ids: set[str] = set()
         self._last_data: OrefAlertData = OrefAlertData()
 
-        poll_interval = config_entry.options.get(
-            CONF_POLL_INTERVAL,
-            config_entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+        poll_interval = get_entry_option(
+            config_entry, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
         )
 
         super().__init__(
@@ -94,6 +94,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             if not any(city in self._selected_cities for city in alert.data):
                 return False
         # Otherwise fall back to area/district-level filtering
+        # (areas are resolved to city names during config flow)
         elif self._selected_areas and not any(
             area in self._selected_areas for area in alert.data
         ):
@@ -123,12 +124,26 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             elif alert.is_real_alert:
                 real_alerts.append(alert)
 
+        _LOGGER.debug(
+            "Parsed %d raw alerts: %d real, %d early warnings, %d event-ended cities",
+            len(all_alerts_raw),
+            len(real_alerts),
+            len(early_warnings),
+            len(event_ended_cities),
+        )
+
         # Apply event-ended reset: remove real alerts whose cities are ALL ended
         if event_ended_cities:
+            before_count = len(real_alerts)
             real_alerts = [
                 a for a in real_alerts
                 if not all(city in event_ended_cities for city in a.data)
             ]
+            if len(real_alerts) < before_count:
+                _LOGGER.debug(
+                    "Event-ended reset removed %d alerts",
+                    before_count - len(real_alerts),
+                )
 
         # Apply location/category filters to real alerts
         filtered_alerts = [a for a in real_alerts if self._filter_alert(a)]
@@ -137,6 +152,13 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         filtered_early_warnings = [
             a for a in early_warnings if self._filter_alert(a)
         ]
+
+        if filtered_alerts:
+            _LOGGER.debug(
+                "Active alerts: %d filtered, %d nationwide",
+                len(filtered_alerts),
+                len(real_alerts),
+            )
 
         # Detect new filtered alerts (not seen before)
         current_ids = {a.id for a in filtered_alerts}
@@ -157,28 +179,14 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
 
         # Fire events for new filtered alerts
         for alert in new_alerts:
-            self.hass.bus.async_fire(
-                EVENT_TZEVAADOM_ALERT,
-                {
-                    "id": alert.id,
-                    "cat": alert.cat,
-                    "title": alert.title,
-                    "desc": alert.desc,
-                    "cities": alert.data,
-                },
-            )
+            _LOGGER.info("New alert: cat=%d, cities=%s", alert.cat, alert.data)
+            self.hass.bus.async_fire(EVENT_TZEVAADOM_ALERT, alert.to_event_data())
 
         # Fire events for new early warnings
         for alert in new_early_warnings:
+            _LOGGER.info("New early warning: cities=%s", alert.data)
             self.hass.bus.async_fire(
-                EVENT_TZEVAADOM_EARLY_WARNING,
-                {
-                    "id": alert.id,
-                    "cat": alert.cat,
-                    "title": alert.title,
-                    "desc": alert.desc,
-                    "cities": alert.data,
-                },
+                EVENT_TZEVAADOM_EARLY_WARNING, alert.to_event_data()
             )
 
         # Update seen IDs - keep only current + recent to avoid unbounded growth
@@ -202,15 +210,12 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         data = OrefAlertData(
             active_alerts=filtered_alerts,
             all_alerts=real_alerts,
-            is_active=len(filtered_alerts) > 0,
-            is_active_all=len(real_alerts) > 0,
             last_alert=last_alert,
             new_alerts=new_alerts,
             new_alerts_all=new_alerts_all,
             early_warnings=filtered_early_warnings,
-            is_early_warning_active=len(filtered_early_warnings) > 0,
             new_early_warnings=new_early_warnings,
-            event_ended_cities=sorted(event_ended_cities),
+            event_ended_cities=sorted(event_ended_cities) if event_ended_cities else [],
         )
 
         self._last_data = data

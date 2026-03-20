@@ -190,6 +190,3 @@ ENABLED_BY_DEFAULT_CATEGORIES: set[int] = {1, 2}  # Rockets, Hostile Aircraft
 # Event names for Home Assistant bus
 EVENT_TZEVAADOM_ALERT = f"{DOMAIN}_alert"
 EVENT_TZEVAADOM_EARLY_WARNING = f"{DOMAIN}_early_warning"
-
-# Platforms
-PLATFORMS = ["binary_sensor", "sensor"]

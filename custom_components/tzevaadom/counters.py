@@ -39,7 +39,10 @@ class AlertCounterManager:
             hass, STORAGE_VERSION, f"{DOMAIN}_counters_{entry_id}"
         )
         self._weekly_reset_day = weekly_reset_day
+        # Sets for O(1) membership testing; deques for bounded FIFO eviction
+        self._counted_ids_set: set[str] = set()
         self._counted_ids: deque[str] = deque(maxlen=MAX_TRACKED_IDS)
+        self._counted_ids_nationwide_set: set[str] = set()
         self._counted_ids_nationwide: deque[str] = deque(maxlen=MAX_TRACKED_IDS)
 
         # Filtered counter values
@@ -81,15 +84,15 @@ class AlertCounterManager:
         self._current_week_start = data.get("current_week_start", "")
         self._current_month = data.get("current_month", "")
         self._current_year = data.get("current_year", 0)
-        self._counted_ids = deque(
-            data.get("counted_ids", []), maxlen=MAX_TRACKED_IDS
-        )
-        self._counted_ids_nationwide = deque(
-            data.get("counted_ids_nationwide", []), maxlen=MAX_TRACKED_IDS
-        )
+        loaded_ids = data.get("counted_ids", [])
+        self._counted_ids = deque(loaded_ids, maxlen=MAX_TRACKED_IDS)
+        self._counted_ids_set = set(loaded_ids)
+        loaded_ids_nw = data.get("counted_ids_nationwide", [])
+        self._counted_ids_nationwide = deque(loaded_ids_nw, maxlen=MAX_TRACKED_IDS)
+        self._counted_ids_nationwide_set = set(loaded_ids_nw)
 
         # Check for period rollovers since last save
-        self._check_rollovers()
+        self.check_rollovers()
 
     def _init_periods(self) -> None:
         """Initialize period tracking to current time."""
@@ -107,7 +110,7 @@ class AlertCounterManager:
             days=days_since_reset
         )
 
-    def _check_rollovers(self) -> None:
+    def check_rollovers(self) -> None:
         """Check and apply any period rollovers."""
         now = dt_util.now()
         current_date = now.strftime("%Y-%m-%d")
@@ -141,12 +144,16 @@ class AlertCounterManager:
 
     def record_alert(self, alert_id: str) -> bool:
         """Record a filtered alert. Returns True if it was a new alert."""
-        if alert_id in self._counted_ids:
+        if alert_id in self._counted_ids_set:
             return False
 
-        self._check_rollovers()
+        self.check_rollovers()
 
+        # If deque is at capacity, evict oldest from the set too
+        if len(self._counted_ids) == MAX_TRACKED_IDS:
+            self._counted_ids_set.discard(self._counted_ids[0])
         self._counted_ids.append(alert_id)
+        self._counted_ids_set.add(alert_id)
         self.daily_count += 1
         self.weekly_count += 1
         self.monthly_count += 1
@@ -155,12 +162,15 @@ class AlertCounterManager:
 
     def record_alert_nationwide(self, alert_id: str) -> bool:
         """Record a nationwide alert. Returns True if it was a new alert."""
-        if alert_id in self._counted_ids_nationwide:
+        if alert_id in self._counted_ids_nationwide_set:
             return False
 
-        self._check_rollovers()
+        self.check_rollovers()
 
+        if len(self._counted_ids_nationwide) == MAX_TRACKED_IDS:
+            self._counted_ids_nationwide_set.discard(self._counted_ids_nationwide[0])
         self._counted_ids_nationwide.append(alert_id)
+        self._counted_ids_nationwide_set.add(alert_id)
         self.daily_count_nationwide += 1
         self.weekly_count_nationwide += 1
         self.monthly_count_nationwide += 1
@@ -178,7 +188,9 @@ class AlertCounterManager:
         self.monthly_count_nationwide = 0
         self.yearly_count_nationwide = 0
         self._counted_ids.clear()
+        self._counted_ids_set.clear()
         self._counted_ids_nationwide.clear()
+        self._counted_ids_nationwide_set.clear()
         self._init_periods()
 
     async def async_save(self) -> None:

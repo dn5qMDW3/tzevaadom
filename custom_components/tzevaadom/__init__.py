@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 
+from aiohttp import ClientSession
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -21,11 +23,11 @@ from .const import (
     DATA_SOURCE_TZOFAR,
     DEFAULT_WEEKLY_RESET_DAY,
     DOMAIN,
-    PLATFORMS,
 )
 from .coordinator import OrefDataUpdateCoordinator
 from .counters import AlertCounterManager
 from .definitions import DefinitionsManager
+from .helpers import get_entry_option
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,14 +35,16 @@ PLATFORMS_LIST: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
 def create_api_client(
-    session: any,
-    entry_data: dict,
+    session: ClientSession,
+    data_source: str,
+    proxy_url: str | None = None,
 ) -> AlertApiClient:
-    """Create the appropriate API client based on config entry data."""
-    data_source = entry_data.get(CONF_DATA_SOURCE, DATA_SOURCE_OREF)
+    """Create the appropriate API client based on data source.
+
+    Shared factory used by both __init__ and config_flow.
+    """
     if data_source == DATA_SOURCE_TZOFAR:
         return TzofarApiClient(session)
-    proxy_url = entry_data.get(CONF_PROXY_URL) or None
     return OrefApiClient(session, proxy_url)
 
 
@@ -74,17 +78,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create API client based on configured data source
     session = async_get_clientsession(hass)
-    client = create_api_client(session, entry.data)
+    data_source = entry.data.get(CONF_DATA_SOURCE, DATA_SOURCE_OREF)
+    proxy_url = entry.data.get(CONF_PROXY_URL) or None
+    client = create_api_client(session, data_source, proxy_url)
 
     # Create coordinator
     coordinator = OrefDataUpdateCoordinator(hass, client, entry)
 
     # Create counter manager
-    weekly_reset_day = entry.options.get(
-        CONF_WEEKLY_RESET_DAY,
-        entry.data.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY),
+    weekly_reset_day = int(
+        get_entry_option(entry, CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)
     )
-    counter_manager = AlertCounterManager(hass, entry.entry_id, int(weekly_reset_day))
+    counter_manager = AlertCounterManager(hass, entry.entry_id, weekly_reset_day)
     await counter_manager.async_load()
 
     # Create definitions manager and schedule updates
@@ -115,7 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Schedule periodic counter rollover check (every 60s)
     async def _check_rollovers(_now=None) -> None:
-        counter_manager._check_rollovers()
+        counter_manager.check_rollovers()
         await counter_manager.async_save()
 
     entry.async_on_unload(

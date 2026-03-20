@@ -42,7 +42,8 @@
     },
     "error": {
       "cannot_connect": "לא ניתן להתחבר למקור הנתונים שנבחר. בדוק את הרשת או נסה מקור אחר.",
-      "proxy_required": "כתובת Proxy נדרשת בעת שימוש בפיקוד העורף דרך Proxy."
+      "proxy_required": "כתובת Proxy נדרשת בעת שימוש בפיקוד העורף דרך Proxy.",
+      "proxy_invalid_scheme": "כתובת Proxy חייבת להתחיל ב-http:// או https://."
     }
   },
   "options": {

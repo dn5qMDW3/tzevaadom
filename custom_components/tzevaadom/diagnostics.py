@@ -57,12 +57,8 @@ async def async_get_config_entry_diagnostics(
     definitions_diag: dict[str, Any] = {}
     if definitions_manager:
         definitions_diag = {
-            "districts_count": len(definitions_manager.districts)
-            if hasattr(definitions_manager, "districts")
-            else 0,
-            "cities_count": len(definitions_manager.cities)
-            if hasattr(definitions_manager, "cities")
-            else 0,
+            "districts_count": len(definitions_manager.get_districts()),
+            "cities_count": len(definitions_manager.get_all_areas()),
         }
 
     return {
