@@ -240,6 +240,12 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle options step."""
+        is_tzofar = self._data_source == DATA_SOURCE_TZOFAR
+        default_interval = (
+            DEFAULT_POLL_INTERVAL_TZOFAR if is_tzofar else DEFAULT_POLL_INTERVAL
+        )
+        min_interval = 3 if is_tzofar else 2
+
         if user_input is not None:
             # Resolve areas from districts
             definitions = await self._get_definitions()
@@ -248,13 +254,6 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
                 resolved_areas = definitions.get_areas_for_districts(
                     self._selected_areas
                 )
-
-            # Choose default poll interval based on data source
-            default_interval = (
-                DEFAULT_POLL_INTERVAL_TZOFAR
-                if self._data_source == DATA_SOURCE_TZOFAR
-                else DEFAULT_POLL_INTERVAL
-            )
 
             data = {
                 CONF_DATA_SOURCE: self._data_source,
@@ -278,14 +277,6 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
                     title += "..."
 
             return self.async_create_entry(title=title, data=data)
-
-        # Choose default poll interval based on data source
-        default_interval = (
-            DEFAULT_POLL_INTERVAL_TZOFAR
-            if self._data_source == DATA_SOURCE_TZOFAR
-            else DEFAULT_POLL_INTERVAL
-        )
-        min_interval = 3 if self._data_source == DATA_SOURCE_TZOFAR else 2
 
         return self.async_show_form(
             step_id="options",
@@ -408,6 +399,15 @@ class TzevaadomOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle settings in options."""
+        data_source = self._config_entry.data.get(
+            CONF_DATA_SOURCE, DATA_SOURCE_OREF
+        )
+        is_tzofar = data_source == DATA_SOURCE_TZOFAR
+        default_interval = (
+            DEFAULT_POLL_INTERVAL_TZOFAR if is_tzofar else DEFAULT_POLL_INTERVAL
+        )
+        min_interval = 3 if is_tzofar else 2
+
         if user_input is not None:
             definitions = await self._get_definitions()
             resolved_areas = []
@@ -422,7 +422,7 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     CONF_CITIES: self._selected_cities,
                     CONF_CATEGORIES: self._selected_categories,
                     CONF_POLL_INTERVAL: int(
-                        user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+                        user_input.get(CONF_POLL_INTERVAL, default_interval)
                     ),
                     CONF_ENABLE_NATIONWIDE: user_input.get(
                         CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
@@ -438,11 +438,11 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_POLL_INTERVAL,
                         default=get_entry_option(
-                            self._config_entry, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
+                            self._config_entry, CONF_POLL_INTERVAL, default_interval
                         ),
                     ): NumberSelector(
                         NumberSelectorConfig(
-                            min=2, max=10, step=1, mode=NumberSelectorMode.SLIDER
+                            min=min_interval, max=10, step=1, mode=NumberSelectorMode.SLIDER
                         )
                     ),
                     vol.Optional(

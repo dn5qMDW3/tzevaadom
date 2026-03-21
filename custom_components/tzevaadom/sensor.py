@@ -8,7 +8,7 @@ import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -185,6 +185,7 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
     """
 
     _attr_icon = "mdi:history"
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,

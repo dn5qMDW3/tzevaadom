@@ -89,6 +89,26 @@ class AlertApiClient(ABC):
         """
         return set()
 
+    async def _fetch(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> str:
+        """Fetch data from the API and return raw text."""
+        try:
+            async with self._session.get(
+                url,
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            ) as response:
+                response.raise_for_status()
+                return (await response.text()).strip()
+        except ClientError as err:
+            raise OrefApiError(f"Error fetching {url}: {err}") from err
+        except TimeoutError as err:
+            raise OrefApiError(f"Timeout fetching {url}") from err
+
 
 class OrefApiClient(AlertApiClient):
     """Client to interact with the Oref alert API."""
@@ -110,24 +130,15 @@ class OrefApiClient(AlertApiClient):
             return default_url.replace(OREF_BASE_URL, self._proxy_url.rstrip("/"))
         return default_url
 
-    async def _fetch(self, url: str) -> str:
-        """Fetch data from the API and return raw text."""
-        try:
-            async with self._session.get(
-                self._build_url(url),
-                headers=OREF_HEADERS,
-                timeout=REQUEST_TIMEOUT,
-            ) as response:
-                response.raise_for_status()
-                text = await response.text()
-                # Remove UTF-8 BOM if present
-                if text.startswith("\ufeff"):
-                    text = text[1:]
-                return text.strip()
-        except ClientError as err:
-            raise OrefApiError(f"Error fetching {url}: {err}") from err
-        except TimeoutError as err:
-            raise OrefApiError(f"Timeout fetching {url}") from err
+    async def _fetch(self, url: str, *, headers: dict[str, str] | None = None) -> str:
+        """Fetch data from Oref API with BOM stripping."""
+        text = await super()._fetch(
+            self._build_url(url), headers=headers or OREF_HEADERS
+        )
+        # Remove UTF-8 BOM if present
+        if text.startswith("\ufeff"):
+            text = text[1:]
+        return text
 
     async def get_alerts(self) -> list[dict[str, Any]]:
         """Fetch current active alerts."""
@@ -323,20 +334,6 @@ class TzofarApiClient(AlertApiClient):
         self._session = session
         self._city_id_map: dict[int, str] | None = None
 
-    async def _fetch(self, url: str) -> str:
-        """Fetch data from the API and return raw text."""
-        try:
-            async with self._session.get(
-                url,
-                timeout=REQUEST_TIMEOUT,
-            ) as response:
-                response.raise_for_status()
-                return (await response.text()).strip()
-        except ClientError as err:
-            raise OrefApiError(f"Error fetching {url}: {err}") from err
-        except TimeoutError as err:
-            raise OrefApiError(f"Timeout fetching {url}") from err
-
     @staticmethod
     def _map_threat_to_cat(threat: int, is_drill: bool) -> int:
         """Map Tzofar threat ID to Oref matrix_id."""
@@ -380,7 +377,11 @@ class TzofarApiClient(AlertApiClient):
             return []
         if not isinstance(data, list):
             return []
-        return [self._notification_to_alert_dict(n) for n in data if n]
+        return [
+            self._notification_to_alert_dict(n)
+            for n in data
+            if isinstance(n, dict)
+        ]
 
     async def get_history(self) -> list[dict[str, Any]]:
         """Fetch alert history from Tzofar.
@@ -403,7 +404,10 @@ class TzofarApiClient(AlertApiClient):
         result = []
         for group in data:
             group_id = group.get("id", "")
-            for alert in group.get("alerts", []):
+            alerts = group.get("alerts", [])
+            if not isinstance(alerts, list):
+                continue
+            for alert in alerts:
                 d = self._notification_to_alert_dict(alert)
                 d["timestamp"] = alert.get("time", 0)
                 d["group_id"] = group_id
