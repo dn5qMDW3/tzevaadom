@@ -52,7 +52,12 @@ class AlertApiClient(ABC):
 
     @abstractmethod
     async def get_history(self) -> list[dict[str, Any]]:
-        """Fetch alert history."""
+        """Fetch alert history.
+
+        Must return normalized dicts:
+        {"id": str, "cat": int, "title": str, "desc": str,
+         "data": list[str], "timestamp": int (unix epoch)}
+        """
 
     @abstractmethod
     async def get_districts(self) -> list[dict[str, Any]]:
@@ -141,9 +146,11 @@ class OrefApiClient(AlertApiClient):
         return []
 
     async def get_history(self) -> list[dict[str, Any]]:
-        """Fetch alert history.
+        """Fetch alert history, normalized to standard format.
 
-        Returns Oref history items as-is (they include 'alertDate' for timestamp).
+        Oref history items have: matrix_id, category, category_desc,
+        alertDate (ISO string), data (single city string).
+        We normalize to: id, cat, title, desc, data (list), timestamp.
         """
         text = await self._fetch(OREF_HISTORY_URL)
         if not text or text == "null":
@@ -153,9 +160,40 @@ class OrefApiClient(AlertApiClient):
         except json.JSONDecodeError:
             _LOGGER.warning("Failed to parse history response: %s", text[:200])
             return []
-        if isinstance(data, list):
-            return data
-        return []
+        if not isinstance(data, list):
+            return []
+
+        from datetime import datetime
+
+        result: list[dict[str, Any]] = []
+        for item in data:
+            # Normalize category: matrix_id is what we use
+            cat = int(item.get("matrix_id", item.get("cat", 0)))
+            cat_info = ALERT_CATEGORIES.get(cat, {})
+
+            # Normalize data: history uses single city string
+            cities = item.get("data", "")
+            if isinstance(cities, str):
+                cities = [cities] if cities else []
+
+            # Normalize timestamp from alertDate (ISO string)
+            timestamp = 0
+            alert_date = item.get("alertDate", "")
+            if alert_date:
+                try:
+                    timestamp = int(datetime.fromisoformat(alert_date).timestamp())
+                except (ValueError, TypeError):
+                    pass
+
+            result.append({
+                "id": str(item.get("rid", item.get("id", timestamp))),
+                "cat": cat,
+                "title": item.get("category_desc", cat_info.get("he", "")),
+                "desc": cat_info.get("en", ""),
+                "data": cities,
+                "timestamp": timestamp,
+            })
+        return result
 
     async def get_districts(self) -> list[dict[str, Any]]:
         """Fetch district/area definitions."""

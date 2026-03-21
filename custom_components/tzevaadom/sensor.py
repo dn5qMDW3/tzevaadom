@@ -198,36 +198,34 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
             self._fetch_in_progress = False
 
     def _process_history(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Process raw API history into a clean list of alert summaries."""
+        """Process normalized API history into a clean list of alert summaries.
+
+        Both API clients normalize to: {id, cat, title, desc, data, timestamp}.
+        """
         result: list[dict[str, Any]] = []
         for item in raw:
-            # Parse into OrefAlert for consistent field access
             alert = OrefAlert.from_dict(item)
             if not alert.is_real_alert:
                 continue
 
-            # Build summary dict
+            ts = item.get("timestamp", 0)
+
             entry: dict[str, Any] = {
                 "id": alert.id,
                 "category_id": alert.cat,
-                "category_he": alert.category_name_he,
-                "category_en": alert.category_name_en,
+                "category_he": alert.category_name_he or alert.title,
+                "category_en": alert.category_name_en or alert.desc,
                 "title": alert.title,
                 "cities": alert.data,
                 "cities_count": len(alert.data),
+                "timestamp": ts,
             }
 
-            # Add timestamp if available (Tzofar provides 'timestamp',
-            # Oref provides 'alertDate')
-            ts = item.get("timestamp") or item.get("time")
             if ts:
-                entry["timestamp"] = ts
                 try:
                     entry["datetime"] = datetime.fromtimestamp(ts).isoformat()
                 except (OSError, ValueError):
                     pass
-            elif "alertDate" in item:
-                entry["alert_date"] = item["alertDate"]
 
             result.append(entry)
 

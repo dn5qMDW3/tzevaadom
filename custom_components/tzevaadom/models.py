@@ -26,14 +26,12 @@ class OrefAlert:
 
     @classmethod
     def from_dict(cls, raw: dict) -> OrefAlert:
-        """Create an OrefAlert from API response dict.
+        """Create an OrefAlert from a normalized API response dict.
 
-        Handles both live endpoint (cat, data=[...]) and history endpoint
-        (category, data="single city") formats.
+        All API clients normalize to: {id, cat, title, desc, data: list[str]}
+        The 'cat' field always contains the Oref matrix_id.
         """
-        # 'cat' in live endpoint, 'category' in history endpoint
-        cat = int(raw.get("cat", raw.get("category", 0)))
-        # 'data' can be a list of cities, a single city string, or None
+        cat = int(raw.get("cat", 0))
         cities = raw.get("data") or []
         if isinstance(cities, str):
             cities = [cities] if cities else []
