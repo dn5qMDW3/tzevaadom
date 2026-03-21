@@ -9,7 +9,6 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/dn5qMDW3/tzevaadom/issues",
-  "license": "MIT",
   "requirements": [],
   "version": "1.6.4"
 }
