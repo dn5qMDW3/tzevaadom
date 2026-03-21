@@ -25,9 +25,11 @@
 - **זיהוי סיום אירוע** — חיישן ההתרעה מתאפס מיד כשפיקוד העורף מפרסם "האירוע הסתיים"
 - **סינון לפי מיקום** — ניטור מחוזות או ישובים ספציפיים
 - **סינון לפי קטגוריה** — בחירת סוגי התרעות (רקטות, כטמ"מ, רעידות אדמה ועוד)
-- **מוני התרעות** — ספירה יומית, שבועית, חודשית ושנתית עם שמירה בין הפעלות
+- **חיישנים לפי קטגוריה** — חיישן בינארי נפרד לכל סוג התרעה
+- **היסטוריית התרעות** — חיישן עם עד 24 שעות היסטוריית התרעות מה-API
 - **חיישן ארצי** — חיישנים אופציונליים לכל ההתרעות בישראל (ללא סינון)
 - **מונע אירועים** — שליחת אירועי `tzevaadom_alert` ו-`tzevaadom_early_warning` לאוטומציות
+- **תבניות מובנות** — תבניות אוטומציה מוכנות לשימוש להתראות, תאורה ו-TTS
 - **עדכון אוטומטי** — רשימות מחוזות/ישובים מתעדכנות אוטומטית
 - **דו-לשוני** — תמיכה מלאה בעברית ובאנגלית
 - **אבחון** — כלי אבחון מובנה לפתרון בעיות
@@ -56,7 +58,7 @@
    - **מקור נתונים** — בחרו בין צופר (עולמי), פיקוד העורף ישיר (ישראל), או פיקוד העורף דרך Proxy
    - **סינון מיקום** — בחרו מחוזות ו/או ישובים (השאירו ריק לניטור ארצי)
    - **קטגוריות** — בחרו סוגי התרעות (השאירו ריק לכל הקטגוריות)
-   - **הגדרות** — הגדירו תדירות סריקה, יום איפוס שבועי וחיישן ארצי
+   - **הגדרות** — הגדירו תדירות סריקה וחיישן ארצי
 
 ## ישויות
 
@@ -67,8 +69,11 @@
 | `binary_sensor.tzeva_adom_alert` | פועל כשיש התרעה התואמת את הסינון שלכם |
 | `binary_sensor.tzeva_adom_alert_all` | פועל כשיש התרעה ארצית כלשהי (אופציונלי) |
 | `binary_sensor.tzeva_adom_early_warning` | פועל כשיש התרעה מקדימה באזורים שלכם |
+| `binary_sensor.tzeva_adom_alert_cat_1` | פועל בהתרעת ירי רקטות וטילים |
+| `binary_sensor.tzeva_adom_alert_cat_6` | פועל בהתרעת חדירת כלי טיס עוין |
+| `binary_sensor.tzeva_adom_alert_cat_*` | חיישנים לפי קטגוריה לכל סוגי ההתרעות (מושבתים כברירת מחדל) |
 
-**תכונות התרעה**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `alert_count`
+**תכונות התרעה**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `cities_count`, `alert_count`, `is_drill`, `priority`, `shelter_time`
 
 **תכונות התרעה מקדימה**: `alert_count`, `cities`, `title`, `description`
 
@@ -76,19 +81,32 @@
 
 | ישות | תיאור |
 |------|-------|
-| `sensor.tzeva_adom_daily_alert_count` | מונה התרעות יומי (מתאפס בחצות) |
-| `sensor.tzeva_adom_weekly_alert_count` | מונה התרעות שבועי (יום איפוס ניתן להגדרה) |
-| `sensor.tzeva_adom_monthly_alert_count` | מונה התרעות חודשי |
-| `sensor.tzeva_adom_yearly_alert_count` | מונה התרעות שנתי |
 | `sensor.tzeva_adom_last_alert` | פרטי ההתרעה האחרונה |
+| `sensor.tzeva_adom_alert_type` | קטגוריית ההתרעה הפעילה (מסונן) |
+| `sensor.tzeva_adom_alert_type_nationwide` | קטגוריית ההתרעה הפעילה (ארצי, אופציונלי) |
+| `sensor.tzeva_adom_alerts_history` | היסטוריית התרעות אחרונות עם חותמות זמן (מסונן) |
+| `sensor.tzeva_adom_alerts_history_nationwide` | היסטוריית התרעות (ארצי, אופציונלי) |
 
-גרסאות ארציות של המונים (`*_nationwide`) זמינות כשחיישן ארצי מופעל.
+**תכונות התרעה אחרונה**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `is_drill`, `priority`, `shelter_time`, `time_in_shelter_seconds`
+
+**תכונות סוג התרעה**: `category_id`, `category_name_he`, `category_name_en`, `is_drill`, `priority`, `active_categories`, `cities_count`, `shelter_time`
+
+**היסטוריית התרעות**: המצב הוא מספר ההתרעות. רשומות ההיסטוריה נמצאות בתכונה `entries` עם חותמות זמן, קטגוריות וישובים.
+
+## תבניות (Blueprints)
+
+האינטגרציה כוללת תבניות אוטומציה מוכנות לשימוש, זמינות אוטומטית תחת **הגדרות** > **אוטומציות** > **תבניות**:
+
+| תבנית | תיאור |
+|-------|-------|
+| **התראה לנייד** | שליחת התראה לנייד עם פרטי ההתרעה, ישובים וזמן מיגון. תומך בהתראות קריטיות ב-iOS. |
+| **הבהוב תאורה בהתרעה** | הבהוב תאורה בזמן התרעה עם צבע לפי קטגוריה (אדום=רקטות, כתום=כטמ"מ, צהוב=רעידת אדמה). שחזור מצב קודם בסיום. |
+| **הכרזת TTS** | הכרזה קולית על פרטי ההתרעה דרך נגן מדיה. |
 
 ## שירותים
 
 | שירות | תיאור |
 |-------|-------|
-| `tzevaadom.reset_counters` | איפוס כל מוני ההתרעות |
 | `tzevaadom.force_refresh` | רענון נתונים מיידי |
 
 ## אירועים
@@ -107,6 +125,11 @@ data:
   cities:
     - "תל אביב - מרכז העיר"
     - "חולון"
+  is_drill: false
+  category_name_he: "ירי רקטות וטילים"
+  category_name_en: "Rockets and Missiles"
+  priority: 120
+  shelter_time: 15
 ```
 
 ### `tzevaadom_early_warning`
@@ -122,6 +145,10 @@ data:
   desc: "..."
   cities:
     - "אשדוד"
+  is_drill: false
+  category_name_he: "ירי רקטות וטילים"
+  category_name_en: "Rockets and Missiles"
+  priority: 120
 ```
 
 ## דוגמאות אוטומציה
@@ -179,14 +206,15 @@ automation:
 | מזהה | עברית | אנגלית |
 |------|-------|--------|
 | 1 | ירי רקטות וטילים | Rockets and Missiles |
-| 2 | חדירת כלי טיס עוין | Hostile Aircraft Intrusion |
+| 2 | ירי לא קונבנציונלי | Non-conventional Missiles |
 | 3 | רעידת אדמה | Earthquake |
-| 4 | צונאמי | Tsunami |
-| 5 | חומרים מסוכנים | Hazardous Materials |
-| 6 | חדירת מחבלים | Terrorist Infiltration |
-| 7 | אירוע רדיולוגי | Radiological Event |
-| 8-13 | תרגילים | Drills (various types) |
-| 14 | הודעה מיוחדת | Special Announcement |
+| 4 | אירוע רדיולוגי | Radiological Event |
+| 5 | צונאמי | Tsunami |
+| 6 | חדירת כלי טיס עוין | Hostile Aircraft Intrusion |
+| 7 | חומרים מסוכנים | Hazardous Materials |
+| 8 | אזהרה | Warning |
+| 13 | חדירת מחבלים | Terrorist Infiltration |
+| 101+ | תרגילים | Drills (מזהה קטגוריה אמיתי + 100) |
 
 ## מופעים מרובים
 

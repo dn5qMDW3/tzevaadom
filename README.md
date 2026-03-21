@@ -23,9 +23,11 @@ A native Home Assistant custom integration for Israel's civil defense alert syst
 - **Event Ended detection** — Alert sensor resets immediately when Oref publishes "Event Ended"
 - **Area filtering** — Monitor specific districts or cities
 - **Category filtering** — Choose which alert types to track (rockets, drones, earthquakes, etc.)
-- **Alert counters** — Daily, weekly, monthly, and yearly alert counts with persistence across restarts
+- **Per-category sensors** — Individual binary sensors for each alert category
+- **Alert history** — Sensor with up to 24 hours of alert history from the API
 - **Nationwide sensor** — Optional sensors for all alerts across Israel (unfiltered)
 - **Event-driven** — Fires `tzevaadom_alert` and `tzevaadom_early_warning` events for automations
+- **Bundled blueprints** — Ready-to-use automation blueprints for notifications, lights, and TTS
 - **Auto-updating definitions** — Area/district/city lists update automatically
 - **Bilingual** — Full Hebrew and English UI support
 - **Diagnostics** — Built-in diagnostics for easy troubleshooting
@@ -54,7 +56,7 @@ A native Home Assistant custom integration for Israel's civil defense alert syst
    - **Data Source** — Choose between Tzofar (worldwide), Oref Direct (Israel), or Oref via Proxy
    - **Location Filter** — Select districts and/or specific cities (leave empty for nationwide)
    - **Categories** — Select alert types to monitor (leave empty for all)
-   - **Settings** — Configure poll interval, weekly reset day, and nationwide sensor
+   - **Settings** — Configure poll interval and nationwide sensor
 
 ## Entities
 
@@ -65,8 +67,11 @@ A native Home Assistant custom integration for Israel's civil defense alert syst
 | `binary_sensor.tzeva_adom_alert` | ON when an alert matches your area/category filters |
 | `binary_sensor.tzeva_adom_alert_all` | ON when any alert is active nationwide (optional) |
 | `binary_sensor.tzeva_adom_early_warning` | ON when an early warning is active for your areas |
+| `binary_sensor.tzeva_adom_alert_cat_1` | ON for rockets and missiles alerts |
+| `binary_sensor.tzeva_adom_alert_cat_6` | ON for hostile aircraft intrusion alerts |
+| `binary_sensor.tzeva_adom_alert_cat_*` | Per-category sensors for all other alert types (disabled by default) |
 
-**Alert attributes**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `alert_count`
+**Alert attributes**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `cities_count`, `alert_count`, `is_drill`, `priority`, `shelter_time`
 
 **Early warning attributes**: `alert_count`, `cities`, `title`, `description`
 
@@ -74,19 +79,32 @@ A native Home Assistant custom integration for Israel's civil defense alert syst
 
 | Entity | Description |
 |--------|-------------|
-| `sensor.tzeva_adom_daily_alert_count` | Alert count today (resets at midnight) |
-| `sensor.tzeva_adom_weekly_alert_count` | Alert count this week (configurable reset day) |
-| `sensor.tzeva_adom_monthly_alert_count` | Alert count this month |
-| `sensor.tzeva_adom_yearly_alert_count` | Alert count this year |
 | `sensor.tzeva_adom_last_alert` | Details of the most recent alert |
+| `sensor.tzeva_adom_alert_type` | Category of the currently active alert (filtered) |
+| `sensor.tzeva_adom_alert_type_nationwide` | Category of the currently active alert (nationwide, optional) |
+| `sensor.tzeva_adom_alerts_history` | Recent alerts history with timestamps (filtered) |
+| `sensor.tzeva_adom_alerts_history_nationwide` | Recent alerts history (nationwide, optional) |
 
-Nationwide counter variants (`*_nationwide`) are available when the nationwide sensor is enabled.
+**Last alert attributes**: `alert_id`, `category`, `category_name_he`, `category_name_en`, `title`, `description`, `cities`, `is_drill`, `priority`, `shelter_time`, `time_in_shelter_seconds`
+
+**Alert type attributes**: `category_id`, `category_name_he`, `category_name_en`, `is_drill`, `priority`, `active_categories`, `cities_count`, `shelter_time`
+
+**Alerts history**: State is the number of alerts. History entries are in the `entries` attribute with timestamps, categories, and cities.
+
+## Blueprints
+
+The integration includes ready-to-use automation blueprints, automatically available under **Settings** > **Automations** > **Blueprints**:
+
+| Blueprint | Description |
+|-----------|-------------|
+| **Mobile Notification** | Sends a mobile notification with alert details, cities, and shelter time. Supports iOS critical notifications. |
+| **Flash Lights on Alert** | Flashes lights during an alert with color by category (red=rockets, orange=aircraft, yellow=earthquake). Restores previous state when alert clears. |
+| **TTS Alert Announcement** | Announces alert details via text-to-speech on a media player. |
 
 ## Services
 
 | Service | Description |
 |---------|-------------|
-| `tzevaadom.reset_counters` | Reset all alert counters to zero |
 | `tzevaadom.force_refresh` | Force an immediate data refresh |
 
 ## Events
@@ -105,6 +123,11 @@ data:
   cities:
     - "תל אביב - מרכז העיר"
     - "חולון"
+  is_drill: false
+  category_name_he: "ירי רקטות וטילים"
+  category_name_en: "Rockets and Missiles"
+  priority: 120
+  shelter_time: 15
 ```
 
 ### `tzevaadom_early_warning`
@@ -120,6 +143,10 @@ data:
   desc: "..."
   cities:
     - "אשדוד"
+  is_drill: false
+  category_name_he: "ירי רקטות וטילים"
+  category_name_en: "Rockets and Missiles"
+  priority: 120
 ```
 
 ## Automation Examples
@@ -177,14 +204,15 @@ automation:
 | ID | Hebrew | English |
 |----|--------|---------|
 | 1 | ירי רקטות וטילים | Rockets and Missiles |
-| 2 | חדירת כלי טיס עוין | Hostile Aircraft Intrusion |
+| 2 | ירי לא קונבנציונלי | Non-conventional Missiles |
 | 3 | רעידת אדמה | Earthquake |
-| 4 | צונאמי | Tsunami |
-| 5 | חומרים מסוכנים | Hazardous Materials |
-| 6 | חדירת מחבלים | Terrorist Infiltration |
-| 7 | אירוע רדיולוגי | Radiological Event |
-| 8-13 | תרגילים | Drills (various types) |
-| 14 | הודעה מיוחדת | Special Announcement |
+| 4 | אירוע רדיולוגי | Radiological Event |
+| 5 | צונאמי | Tsunami |
+| 6 | חדירת כלי טיס עוין | Hostile Aircraft Intrusion |
+| 7 | חומרים מסוכנים | Hazardous Materials |
+| 8 | אזהרה | Warning |
+| 13 | חדירת מחבלים | Terrorist Infiltration |
+| 101+ | תרגילים | Drills (real category ID + 100) |
 
 ## Multiple Instances
 
