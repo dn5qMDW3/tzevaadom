@@ -132,6 +132,9 @@
       "alert_cat_107": {
         "name": "Drill - Hazardous Materials"
       },
+      "alert_cat_109": {
+        "name": "Drill - Console"
+      },
       "alert_cat_110": {
         "name": "Drill - Update"
       },

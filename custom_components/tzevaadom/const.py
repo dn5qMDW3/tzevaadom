@@ -14,6 +14,9 @@ DATA_SOURCE_OREF_PROXY = "oref_proxy"
 OREF_BASE_URL = "https://www.oref.org.il"
 OREF_ALERTS_URL = f"{OREF_BASE_URL}/WarningMessages/alert/alerts.json"
 OREF_HISTORY_URL = f"{OREF_BASE_URL}/WarningMessages/alert/History/AlertsHistory.json"
+# Extended history endpoint — 24h, up to 3000 entries, works worldwide (no headers needed)
+# Different domain from main Oref API, so proxy URL replacement does NOT apply.
+OREF_HISTORY_ASPX_URL = "https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx"
 OREF_DISTRICTS_URL = f"{OREF_BASE_URL}/districts/districts_heb.json"
 
 # Required headers for Oref API
@@ -199,6 +202,11 @@ ALERT_CATEGORIES: dict[int, dict[str, str]] = {
         "he": "תרגיל חומרים מסוכנים",
         "en": "Drill - Hazardous Materials",
         "icon": "mdi:hazard-lights",
+    },
+    109: {
+        "he": "תרגיל מסוף",
+        "en": "Drill - Console",
+        "icon": "mdi:console",
     },
     110: {
         "he": "תרגיל עדכון",

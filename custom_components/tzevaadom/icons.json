@@ -70,6 +70,9 @@
       "alert_cat_107": {
         "default": "mdi:hazard-lights"
       },
+      "alert_cat_109": {
+        "default": "mdi:console"
+      },
       "alert_cat_110": {
         "default": "mdi:information-outline"
       },

@@ -99,7 +99,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         if categories is not None:
             self._selected_categories = set(categories)
 
-    def _filter_alert(self, alert: OrefAlert) -> bool:
+    def filter_alert(self, alert: OrefAlert) -> bool:
         """Check if an alert matches the configured filters."""
         # If no categories selected, accept all
         if self._selected_categories and alert.cat not in self._selected_categories:
@@ -248,10 +248,10 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         real_alerts = self._get_retained_alerts()
 
         # Apply location/category filters
-        filtered_alerts = [a for a in real_alerts if self._filter_alert(a)]
+        filtered_alerts = [a for a in real_alerts if self.filter_alert(a)]
 
         filtered_early_warnings = [
-            a for a in early_warnings if self._filter_alert(a)
+            a for a in early_warnings if self.filter_alert(a)
         ]
 
         if filtered_alerts:

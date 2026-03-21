@@ -16,6 +16,7 @@ from .const import (
     OREF_ALERTS_URL,
     OREF_DISTRICTS_URL,
     OREF_HEADERS,
+    OREF_HISTORY_ASPX_URL,
     OREF_HISTORY_URL,
     OREF_TITLE_EARLY_WARNING_ALT,
     TZOFAR_ALERTS_URL,
@@ -148,10 +149,99 @@ class OrefApiClient(AlertApiClient):
     async def get_history(self) -> list[dict[str, Any]]:
         """Fetch alert history, normalized to standard format.
 
-        Oref history items have: matrix_id, category, category_desc,
-        alertDate (ISO string), data (single city string).
-        We normalize to: id, cat, title, desc, data (list), timestamp.
+        Primary: ASPX endpoint (24h, up to 3000 entries, works worldwide).
+        Fallback: AlertsHistory.json (~1h, requires Israel/proxy).
         """
+        # Try ASPX endpoint first (better data, works worldwide)
+        try:
+            result = await self._fetch_history_aspx()
+            if result:
+                return result
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "ASPX history fetch failed, trying legacy endpoint", exc_info=True
+            )
+
+        # Fallback to legacy AlertsHistory.json
+        return await self._fetch_history_legacy()
+
+    async def _fetch_history_aspx(self) -> list[dict[str, Any]]:
+        """Fetch from the ASPX history endpoint (24h, up to 3000 entries).
+
+        This endpoint is on alerts-history.oref.org.il (different domain),
+        requires no special headers, and works worldwide.
+        Response: {data, date, time, alertDate, category, category_desc,
+                   matrix_id, rid}
+        NOTE: 'category' here is Oref's internal catId, NOT matrix_id.
+        """
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        url = f"{OREF_HISTORY_ASPX_URL}?lang=he&mode=1"
+        try:
+            async with self._session.get(
+                url, timeout=REQUEST_TIMEOUT
+            ) as response:
+                response.raise_for_status()
+                text = await response.text()
+        except ClientError as err:
+            raise OrefApiError(f"Error fetching ASPX history: {err}") from err
+        except TimeoutError as err:
+            raise OrefApiError("Timeout fetching ASPX history") from err
+
+        if text.startswith("\ufeff"):
+            text = text[1:]
+        text = text.strip()
+        if not text or text == "null":
+            return []
+
+        data = json.loads(text)
+        if not isinstance(data, list):
+            return []
+
+        israel_tz = ZoneInfo("Asia/Jerusalem")
+        result: list[dict[str, Any]] = []
+        for item in data:
+            # Use matrix_id (NOT category — that's Oref's internal catId)
+            cat = int(item.get("matrix_id", 0))
+            cat_info = ALERT_CATEGORIES.get(cat, {})
+
+            cities = item.get("data", "")
+            if isinstance(cities, str):
+                cities = [cities] if cities else []
+
+            # alertDate is Israel local time with no timezone info
+            timestamp = 0
+            alert_date = item.get("alertDate", "")
+            if alert_date:
+                try:
+                    dt = datetime.fromisoformat(alert_date)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=israel_tz)
+                    timestamp = int(dt.timestamp())
+                except (ValueError, TypeError):
+                    pass
+
+            result.append({
+                "id": str(item.get("rid", timestamp)),
+                "cat": cat,
+                "title": item.get("category_desc", cat_info.get("he", "")),
+                "desc": cat_info.get("en", ""),
+                "data": cities,
+                "timestamp": timestamp,
+            })
+        return result
+
+    async def _fetch_history_legacy(self) -> list[dict[str, Any]]:
+        """Fetch from legacy AlertsHistory.json (fallback, ~1h of data).
+
+        Response: {alertDate, title, data (single string), category}
+        NOTE: 'category' in this endpoint IS effectively the matrix_id
+        (despite the confusing name — it matches matrix_id values).
+        """
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
         text = await self._fetch(OREF_HISTORY_URL)
         if not text or text == "null":
             return []
@@ -163,32 +253,36 @@ class OrefApiClient(AlertApiClient):
         if not isinstance(data, list):
             return []
 
-        from datetime import datetime
-
+        israel_tz = ZoneInfo("Asia/Jerusalem")
         result: list[dict[str, Any]] = []
         for item in data:
-            # Normalize category: matrix_id is what we use
-            cat = int(item.get("matrix_id", item.get("cat", 0)))
+            # In AlertsHistory.json, 'category' holds matrix_id values
+            cat = int(
+                item.get("matrix_id", item.get("cat", item.get("category", 0)))
+            )
             cat_info = ALERT_CATEGORIES.get(cat, {})
 
-            # Normalize data: history uses single city string
             cities = item.get("data", "")
             if isinstance(cities, str):
                 cities = [cities] if cities else []
 
-            # Normalize timestamp from alertDate (ISO string)
             timestamp = 0
             alert_date = item.get("alertDate", "")
             if alert_date:
                 try:
-                    timestamp = int(datetime.fromisoformat(alert_date).timestamp())
+                    dt = datetime.fromisoformat(
+                        alert_date.replace(" ", "T")
+                    )
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=israel_tz)
+                    timestamp = int(dt.timestamp())
                 except (ValueError, TypeError):
                     pass
 
             result.append({
                 "id": str(item.get("rid", item.get("id", timestamp))),
                 "cat": cat,
-                "title": item.get("category_desc", cat_info.get("he", "")),
+                "title": item.get("title", cat_info.get("he", "")),
                 "desc": cat_info.get("en", ""),
                 "data": cities,
                 "timestamp": timestamp,

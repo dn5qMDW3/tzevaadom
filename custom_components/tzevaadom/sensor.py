@@ -23,6 +23,10 @@ _LOGGER = logging.getLogger(__name__)
 # How often to refresh history from the API (seconds)
 HISTORY_REFRESH_INTERVAL = 5 * 60  # 5 minutes
 
+# Maximum history entries to keep in attributes (prevents HA database bloat).
+# Oref ASPX endpoint can return up to 3000 entries.
+MAX_HISTORY_ENTRIES = 500
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -201,11 +205,17 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
         """Process normalized API history into a clean list of alert summaries.
 
         Both API clients normalize to: {id, cat, title, desc, data, timestamp}.
+        For filtered variant (not nationwide), applies user's location/category
+        filters to only show history relevant to their configured areas.
         """
         result: list[dict[str, Any]] = []
         for item in raw:
             alert = OrefAlert.from_dict(item)
             if not alert.is_real_alert:
+                continue
+
+            # For filtered variant, apply user's location/category filters
+            if not self._nationwide and not self.coordinator.filter_alert(alert):
                 continue
 
             ts = item.get("timestamp", 0)
@@ -228,6 +238,10 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
                     pass
 
             result.append(entry)
+
+            # Cap history size to prevent HA database bloat
+            if len(result) >= MAX_HISTORY_ENTRIES:
+                break
 
         return result
 
