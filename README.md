@@ -26,7 +26,7 @@ A native Home Assistant custom integration for Israel's civil defense alert syst
 - **Per-category sensors** — Individual binary sensors for each alert category
 - **Alert history** — Sensor with up to 24 hours of alert history from the API
 - **Nationwide sensor** — Optional sensors for all alerts across Israel (unfiltered)
-- **Event-driven** — Fires `tzevaadom_alert` and `tzevaadom_early_warning` events for automations
+- **Event-driven** — Fires `tzevaadom_alert`, `tzevaadom_early_warning`, and `tzevaadom_all_clear` events for automations
 - **Bundled blueprints** — Ready-to-use automation blueprints for notifications, lights, and TTS
 - **Auto-updating definitions** — Area/district/city lists update automatically
 - **Bilingual** — Full Hebrew and English UI support
@@ -130,6 +130,19 @@ data:
   shelter_time: 15
 ```
 
+### `tzevaadom_all_clear`
+
+Fired when cities are cleared from alert (event ended / all clear):
+
+```yaml
+event_type: tzevaadom_all_clear
+data:
+  cities:
+    - "תל אביב - מרכז העיר"
+    - "חולון"
+  cities_count: 2
+```
+
 ### `tzevaadom_early_warning`
 
 Fired when early warning alerts are detected for your areas:
@@ -213,6 +226,18 @@ automation:
 | 8 | אזהרה | Warning |
 | 13 | חדירת מחבלים | Terrorist Infiltration |
 | 101+ | תרגילים | Drills (real category ID + 100) |
+
+## Reducing Database Size
+
+The history sensors store up to 500 alert entries in their attributes. If your Home Assistant database is growing too large, you can exclude these sensors from the recorder:
+
+```yaml
+# configuration.yaml
+recorder:
+  exclude:
+    entity_globs:
+      - sensor.tzeva_adom_alerts_history*
+```
 
 ## Multiple Instances
 

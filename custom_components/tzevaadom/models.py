@@ -172,12 +172,20 @@ class OrefAlertData:
         """Return True if early warnings are active."""
         return bool(self.early_warnings)
 
+    @staticmethod
+    def collect_cities(alerts: list[OrefAlert]) -> list[str]:
+        """Collect all city names from a list of alerts."""
+        cities: list[str] = []
+        for a in alerts:
+            cities.extend(a.data)
+        return cities
+
     @property
     def active_cities_count(self) -> int:
         """Return total number of cities under alert nationwide."""
-        return sum(len(a.data) for a in self.all_alerts)
+        return len(self.collect_cities(self.all_alerts))
 
     @property
     def filtered_cities_count(self) -> int:
         """Return number of filtered cities under alert."""
-        return sum(len(a.data) for a in self.active_alerts)
+        return len(self.collect_cities(self.active_alerts))

@@ -42,7 +42,7 @@ trigger:
 condition:
   - condition: template
     value_template: >
-      {% if skip_drills %}
+      {% if is_skip_drills %}
         {{ trigger.event.data.is_drill != true }}
       {% else %}
         true
@@ -50,6 +50,7 @@ condition:
 
 action:
   - variables:
+      is_skip_drills: !input skip_drills
       lang: !input language
       alert_type: >
         {% if lang == 'he' %}
@@ -58,7 +59,7 @@ action:
           {{ trigger.event.data.category_name_en }}
         {% endif %}
       cities: "{{ trigger.event.data.cities | join(', ') }}"
-      shelter: "{{ trigger.event.data.get('shelter_time', '') }}"
+      shelter: "{{ trigger.event.data.shelter_time | default('') }}"
       message: >
         {% if lang == 'he' %}
           צבע אדום. {{ alert_type }}. {{ cities }}.

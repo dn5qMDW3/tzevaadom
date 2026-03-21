@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -18,7 +19,7 @@ from .const import CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
 from .coordinator import OrefDataUpdateCoordinator
 from .entity import TzevaadomEntity
 from .helpers import get_entry_option
-from .models import OrefAlert
+from .models import OrefAlert, OrefAlertData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -167,9 +168,7 @@ class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
 
         alerts = self._get_alerts()
         active_cats = sorted({a.cat for a in alerts})
-        all_cities = []
-        for a in alerts:
-            all_cities.extend(a.data)
+        all_cities = OrefAlertData.collect_cities(alerts)
 
         attrs: dict[str, Any] = {
             "category_id": alert.cat,
@@ -185,7 +184,7 @@ class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
         return attrs
 
 
-class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
+class TzevaadomAlertsHistorySensor(TzevaadomEntity, RestoreEntity, SensorEntity):
     """Sensor exposing recent alerts history from the API.
 
     Fetches from the API history endpoint (last ~24h of alerts) every 5 minutes.
@@ -197,6 +196,7 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
     """
 
     _attr_icon = "mdi:history"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,
@@ -213,6 +213,25 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
         self._api_history: list[dict[str, Any]] = []
         self._last_fetch: float = 0.0
         self._fetch_in_progress: bool = False
+
+    async def async_added_to_hass(self) -> None:
+        """Restore history state on startup so it's not empty until first API fetch."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            # Restore the alert count
+            try:
+                restored_count = int(last_state.state)
+            except (ValueError, TypeError):
+                restored_count = 0
+            # Restore the history list from attributes
+            restored_alerts = last_state.attributes.get("alerts")
+            if isinstance(restored_alerts, list) and restored_alerts:
+                self._api_history = restored_alerts[:MAX_HISTORY_ENTRIES]
+                _LOGGER.debug(
+                    "Restored %d history entries (state=%d)",
+                    len(self._api_history),
+                    restored_count,
+                )
 
     async def _refresh_history(self) -> None:
         """Fetch history from the API (throttled)."""

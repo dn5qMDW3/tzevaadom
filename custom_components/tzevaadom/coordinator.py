@@ -20,6 +20,7 @@ from .const import (
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
     EVENT_TZEVAADOM_ALERT,
+    EVENT_TZEVAADOM_ALL_CLEAR,
     EVENT_TZEVAADOM_EARLY_WARNING,
 )
 from .definitions import DefinitionsManager
@@ -258,6 +259,11 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
                     "Event-ended cleared %d cities from retention: %s",
                     len(cleared),
                     cleared[:10],
+                )
+                # Fire all-clear event for automations
+                self.hass.bus.async_fire(
+                    EVENT_TZEVAADOM_ALL_CLEAR,
+                    {"cities": cleared, "cities_count": len(cleared)},
                 )
             # Keep only last 50 duration records
             if len(self._recent_durations) > 50:

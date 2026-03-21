@@ -22,6 +22,7 @@ from .const import (
 from .coordinator import OrefDataUpdateCoordinator
 from .entity import TzevaadomEntity
 from .helpers import get_entry_option
+from .models import OrefAlertData
 
 
 async def async_setup_entry(
@@ -102,9 +103,7 @@ class TzevaadomAlertBinarySensor(TzevaadomEntity, BinarySensorEntity):
             return {"alert_count": 0, "cities": [], "cities_count": 0}
 
         attrs = alerts[0].to_state_attributes()
-        all_cities = []
-        for a in alerts:
-            all_cities.extend(a.data)
+        all_cities = OrefAlertData.collect_cities(alerts)
         attrs["alert_count"] = len(alerts)
         attrs["cities_count"] = len(all_cities)
 
@@ -154,9 +153,7 @@ class TzevaadomEarlyWarningBinarySensor(TzevaadomEntity, BinarySensorEntity):
         if not warnings:
             return {"alert_count": 0, "cities": []}
 
-        all_cities = []
-        for w in warnings:
-            all_cities.extend(w.data)
+        all_cities = OrefAlertData.collect_cities(warnings)
 
         return {
             "alert_count": len(warnings),
@@ -227,9 +224,7 @@ class TzevaadomCategoryBinarySensor(TzevaadomEntity, BinarySensorEntity):
             base["cities_count"] = 0
             return base
 
-        all_cities = []
-        for alert in self._cached_alerts:
-            all_cities.extend(alert.data)
+        all_cities = OrefAlertData.collect_cities(self._cached_alerts)
         base["cities"] = all_cities
         base["cities_count"] = len(all_cities)
         base["title"] = self._cached_alerts[0].title
