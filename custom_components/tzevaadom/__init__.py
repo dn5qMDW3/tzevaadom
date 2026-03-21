@@ -17,17 +17,13 @@ from .api import AlertApiClient, OrefApiClient, TzofarApiClient
 from .const import (
     CONF_DATA_SOURCE,
     CONF_PROXY_URL,
-    CONF_WEEKLY_RESET_DAY,
     DATA_SOURCE_OREF,
     DATA_SOURCE_OREF_PROXY,
     DATA_SOURCE_TZOFAR,
-    DEFAULT_WEEKLY_RESET_DAY,
     DOMAIN,
 )
 from .coordinator import OrefDataUpdateCoordinator
-from .counters import AlertCounterManager
 from .definitions import DefinitionsManager
-from .helpers import get_entry_option
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,13 +81,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create coordinator
     coordinator = OrefDataUpdateCoordinator(hass, client, entry)
 
-    # Create counter manager
-    weekly_reset_day = int(
-        get_entry_option(entry, CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)
-    )
-    counter_manager = AlertCounterManager(hass, entry.entry_id, weekly_reset_day)
-    await counter_manager.async_load()
-
     # Create definitions manager and schedule updates
     definitions_manager = DefinitionsManager(hass)
     await definitions_manager.async_load()
@@ -99,7 +88,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Store references
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
-        "counter_manager": counter_manager,
         "definitions_manager": definitions_manager,
         "client": client,
     }
@@ -116,15 +104,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(
         async_track_time_interval(hass, _update_definitions, timedelta(hours=24))
-    )
-
-    # Schedule periodic counter rollover check (every 60s)
-    async def _check_rollovers(_now=None) -> None:
-        counter_manager.check_rollovers()
-        await counter_manager.async_save()
-
-    entry.async_on_unload(
-        async_track_time_interval(hass, _check_rollovers, timedelta(seconds=60))
     )
 
     # Register services
@@ -145,9 +124,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS_LIST)
     if unload_ok:
-        entry_data = hass.data[DOMAIN].pop(entry.entry_id)
-        # Save counters before unloading
-        await entry_data["counter_manager"].async_save()
+        hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
 
 
@@ -158,16 +135,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 def _register_services(hass: HomeAssistant) -> None:
     """Register integration services."""
-    if hass.services.has_service(DOMAIN, "reset_counters"):
+    if hass.services.has_service(DOMAIN, "force_refresh"):
         return
-
-    async def handle_reset_counters(call: ServiceCall) -> None:
-        """Reset all alert counters."""
-        for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
-            if isinstance(entry_data, dict) and "counter_manager" in entry_data:
-                entry_data["counter_manager"].reset_all()
-                await entry_data["counter_manager"].async_save()
-        _LOGGER.info("All alert counters have been reset")
 
     async def handle_force_refresh(call: ServiceCall) -> None:
         """Force an immediate data refresh."""
@@ -176,5 +145,4 @@ def _register_services(hass: HomeAssistant) -> None:
                 await entry_data["coordinator"].async_request_refresh()
         _LOGGER.debug("Forced data refresh")
 
-    hass.services.async_register(DOMAIN, "reset_counters", handle_reset_counters)
     hass.services.async_register(DOMAIN, "force_refresh", handle_force_refresh)

@@ -23,68 +23,79 @@
         "default": "mdi:rocket-launch"
       },
       "alert_cat_2": {
-        "default": "mdi:airplane-alert"
+        "default": "mdi:alert-octagon"
       },
       "alert_cat_3": {
         "default": "mdi:earth-box"
       },
       "alert_cat_4": {
-        "default": "mdi:waves"
-      },
-      "alert_cat_5": {
-        "default": "mdi:hazard-lights"
-      },
-      "alert_cat_6": {
-        "default": "mdi:account-alert"
-      },
-      "alert_cat_7": {
         "default": "mdi:radioactive"
       },
-      "alert_cat_8": {
-        "default": "mdi:rocket-launch-outline"
+      "alert_cat_5": {
+        "default": "mdi:waves"
       },
-      "alert_cat_9": {
-        "default": "mdi:airplane-clock"
+      "alert_cat_6": {
+        "default": "mdi:airplane-alert"
       },
-      "alert_cat_10": {
-        "default": "mdi:earth-box-minus"
-      },
-      "alert_cat_11": {
-        "default": "mdi:waves-arrow-up"
-      },
-      "alert_cat_12": {
+      "alert_cat_7": {
         "default": "mdi:hazard-lights"
       },
-      "alert_cat_13": {
-        "default": "mdi:account-alert-outline"
+      "alert_cat_8": {
+        "default": "mdi:alert"
       },
-      "alert_cat_14": {
-        "default": "mdi:alert-circle"
+      "alert_cat_10": {
+        "default": "mdi:information"
+      },
+      "alert_cat_13": {
+        "default": "mdi:account-alert"
+      },
+      "alert_cat_101": {
+        "default": "mdi:rocket-launch-outline"
+      },
+      "alert_cat_102": {
+        "default": "mdi:alert-outline"
+      },
+      "alert_cat_103": {
+        "default": "mdi:earth-box-minus"
+      },
+      "alert_cat_104": {
+        "default": "mdi:radioactive"
+      },
+      "alert_cat_105": {
+        "default": "mdi:waves-arrow-up"
+      },
+      "alert_cat_106": {
+        "default": "mdi:airplane-clock"
+      },
+      "alert_cat_107": {
+        "default": "mdi:hazard-lights"
+      },
+      "alert_cat_110": {
+        "default": "mdi:information-outline"
+      },
+      "alert_cat_113": {
+        "default": "mdi:account-alert-outline"
       }
     },
     "sensor": {
-      "daily_alert_count": {
-        "default": "mdi:counter"
-      },
-      "weekly_alert_count": {
-        "default": "mdi:counter"
-      },
-      "monthly_alert_count": {
-        "default": "mdi:counter"
-      },
-      "yearly_alert_count": {
-        "default": "mdi:counter"
-      },
       "last_alert": {
         "default": "mdi:alert-circle-outline"
       },
       "alert_type": {
         "default": "mdi:alert-circle-outline"
+      },
+      "alert_type_nationwide": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "alerts_history": {
+        "default": "mdi:history"
+      },
+      "alerts_history_nationwide": {
+        "default": "mdi:history"
       }
     }
   },
   "services": {
-    "reset_counters": "mdi:restart",
     "force_refresh": "mdi:refresh"
   }
 }

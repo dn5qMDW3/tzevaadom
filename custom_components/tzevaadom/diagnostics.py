@@ -21,7 +21,6 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a config entry."""
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     coordinator = entry_data.get("coordinator")
-    counter_manager = entry_data.get("counter_manager")
     definitions_manager = entry_data.get("definitions_manager")
 
     # Coordinator state
@@ -37,20 +36,7 @@ async def async_get_config_entry_diagnostics(
             "early_warnings_count": len(data.early_warnings),
             "event_ended_cities": data.event_ended_cities,
             "last_alert_id": data.last_alert.id if data.last_alert else None,
-        }
-
-    # Counter state
-    counter_diag: dict[str, Any] = {}
-    if counter_manager:
-        counter_diag = {
-            "daily_count": counter_manager.daily_count,
-            "weekly_count": counter_manager.weekly_count,
-            "monthly_count": counter_manager.monthly_count,
-            "yearly_count": counter_manager.yearly_count,
-            "daily_count_nationwide": counter_manager.daily_count_nationwide,
-            "weekly_count_nationwide": counter_manager.weekly_count_nationwide,
-            "monthly_count_nationwide": counter_manager.monthly_count_nationwide,
-            "yearly_count_nationwide": counter_manager.yearly_count_nationwide,
+            "retained_cities_count": len(coordinator._retained_cities),
         }
 
     # Definitions state
@@ -71,6 +57,5 @@ async def async_get_config_entry_diagnostics(
             TO_REDACT,
         ),
         "coordinator": coordinator_diag,
-        "counters": counter_diag,
         "definitions": definitions_diag,
     }

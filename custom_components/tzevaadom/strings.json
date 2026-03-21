@@ -32,10 +32,9 @@
       },
       "options": {
         "title": "Settings",
-        "description": "Configure polling and counter settings.",
+        "description": "Configure polling settings.",
         "data": {
           "poll_interval": "Poll interval (seconds)",
-          "weekly_reset_day": "Weekly counter reset day",
           "enable_nationwide": "Enable nationwide alert sensor"
         }
       }
@@ -66,7 +65,6 @@
         "title": "Settings",
         "data": {
           "poll_interval": "Poll interval (seconds)",
-          "weekly_reset_day": "Weekly counter reset day",
           "enable_nationwide": "Enable nationwide alert sensor"
         }
       }
@@ -87,75 +85,75 @@
         "name": "Alert - Rockets and Missiles"
       },
       "alert_cat_2": {
-        "name": "Alert - Hostile Aircraft"
+        "name": "Alert - Non-conventional Missiles"
       },
       "alert_cat_3": {
         "name": "Alert - Earthquake"
       },
       "alert_cat_4": {
-        "name": "Alert - Tsunami"
-      },
-      "alert_cat_5": {
-        "name": "Alert - Hazardous Materials"
-      },
-      "alert_cat_6": {
-        "name": "Alert - Terrorist Infiltration"
-      },
-      "alert_cat_7": {
         "name": "Alert - Radiological Event"
       },
-      "alert_cat_8": {
-        "name": "Drill - Rockets and Missiles"
+      "alert_cat_5": {
+        "name": "Alert - Tsunami"
       },
-      "alert_cat_9": {
-        "name": "Drill - Hostile Aircraft"
+      "alert_cat_6": {
+        "name": "Alert - Hostile Aircraft Intrusion"
+      },
+      "alert_cat_7": {
+        "name": "Alert - Hazardous Materials"
+      },
+      "alert_cat_8": {
+        "name": "Alert - Warning"
       },
       "alert_cat_10": {
-        "name": "Drill - Earthquake"
-      },
-      "alert_cat_11": {
-        "name": "Drill - Tsunami"
-      },
-      "alert_cat_12": {
-        "name": "Drill - Hazardous Materials"
+        "name": "Alert - Home Front Command Update"
       },
       "alert_cat_13": {
-        "name": "Drill - Terrorist Infiltration"
+        "name": "Alert - Terrorist Infiltration"
       },
-      "alert_cat_14": {
-        "name": "Alert - Special Announcement"
+      "alert_cat_101": {
+        "name": "Drill - Rockets and Missiles"
+      },
+      "alert_cat_102": {
+        "name": "Drill - General"
+      },
+      "alert_cat_103": {
+        "name": "Drill - Earthquake"
+      },
+      "alert_cat_104": {
+        "name": "Drill - Radiological Event"
+      },
+      "alert_cat_105": {
+        "name": "Drill - Tsunami"
+      },
+      "alert_cat_106": {
+        "name": "Drill - Hostile Aircraft"
+      },
+      "alert_cat_107": {
+        "name": "Drill - Hazardous Materials"
+      },
+      "alert_cat_110": {
+        "name": "Drill - Update"
+      },
+      "alert_cat_113": {
+        "name": "Drill - Terrorist Infiltration"
       }
     },
     "sensor": {
-      "daily_alert_count": {
-        "name": "Daily Alert Count"
-      },
-      "weekly_alert_count": {
-        "name": "Weekly Alert Count"
-      },
-      "monthly_alert_count": {
-        "name": "Monthly Alert Count"
-      },
-      "yearly_alert_count": {
-        "name": "Yearly Alert Count"
-      },
       "last_alert": {
         "name": "Last Alert"
       },
-      "daily_alert_count_nationwide": {
-        "name": "Daily Alert Count (Nationwide)"
-      },
-      "weekly_alert_count_nationwide": {
-        "name": "Weekly Alert Count (Nationwide)"
-      },
-      "monthly_alert_count_nationwide": {
-        "name": "Monthly Alert Count (Nationwide)"
-      },
-      "yearly_alert_count_nationwide": {
-        "name": "Yearly Alert Count (Nationwide)"
-      },
       "alert_type": {
         "name": "Alert Type"
+      },
+      "alert_type_nationwide": {
+        "name": "Alert Type (Nationwide)"
+      },
+      "alerts_history": {
+        "name": "Alerts History"
+      },
+      "alerts_history_nationwide": {
+        "name": "Alerts History (Nationwide)"
       }
     }
   }

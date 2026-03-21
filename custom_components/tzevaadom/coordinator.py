@@ -267,7 +267,7 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         new_alert_ids = current_ids - self._seen_alert_ids
         new_alerts = [a for a in filtered_alerts if a.id in new_alert_ids]
 
-        # Detect new nationwide alerts (for nationwide counter)
+        # Detect new nationwide alerts
         current_ids_all = {a.id for a in real_alerts}
         new_alert_ids_all = current_ids_all - self._seen_alert_ids_all
         new_alerts_all = [a for a in real_alerts if a.id in new_alert_ids_all]

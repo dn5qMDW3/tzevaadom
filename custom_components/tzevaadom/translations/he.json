@@ -32,10 +32,9 @@
       },
       "options": {
         "title": "הגדרות",
-        "description": "הגדר תדירות סריקה והגדרות מונים.",
+        "description": "הגדר תדירות סריקה.",
         "data": {
           "poll_interval": "תדירות סריקה (שניות)",
-          "weekly_reset_day": "יום איפוס מונה שבועי",
           "enable_nationwide": "הפעל חיישן התרעה ארצי"
         }
       }
@@ -66,7 +65,6 @@
         "title": "הגדרות",
         "data": {
           "poll_interval": "תדירות סריקה (שניות)",
-          "weekly_reset_day": "יום איפוס מונה שבועי",
           "enable_nationwide": "הפעל חיישן התרעה ארצי"
         }
       }
@@ -87,75 +85,75 @@
         "name": "התרעה - ירי רקטות וטילים"
       },
       "alert_cat_2": {
-        "name": "התרעה - חדירת כלי טיס עוין"
+        "name": "התרעה - ירי לא קונבנציונלי"
       },
       "alert_cat_3": {
         "name": "התרעה - רעידת אדמה"
       },
       "alert_cat_4": {
-        "name": "התרעה - צונאמי"
-      },
-      "alert_cat_5": {
-        "name": "התרעה - חומרים מסוכנים"
-      },
-      "alert_cat_6": {
-        "name": "התרעה - חדירת מחבלים"
-      },
-      "alert_cat_7": {
         "name": "התרעה - אירוע רדיולוגי"
       },
-      "alert_cat_8": {
-        "name": "תרגיל - ירי רקטות וטילים"
+      "alert_cat_5": {
+        "name": "התרעה - צונאמי"
       },
-      "alert_cat_9": {
-        "name": "תרגיל - חדירת כלי טיס עוין"
+      "alert_cat_6": {
+        "name": "התרעה - חדירת כלי טיס עוין"
+      },
+      "alert_cat_7": {
+        "name": "התרעה - חומרים מסוכנים"
+      },
+      "alert_cat_8": {
+        "name": "התרעה - אזהרה"
       },
       "alert_cat_10": {
-        "name": "תרגיל - רעידת אדמה"
-      },
-      "alert_cat_11": {
-        "name": "תרגיל - צונאמי"
-      },
-      "alert_cat_12": {
-        "name": "תרגיל - חומרים מסוכנים"
+        "name": "עדכון פיקוד העורף"
       },
       "alert_cat_13": {
-        "name": "תרגיל - חדירת מחבלים"
+        "name": "התרעה - חדירת מחבלים"
       },
-      "alert_cat_14": {
-        "name": "התרעה - הודעה מיוחדת"
+      "alert_cat_101": {
+        "name": "תרגיל - ירי רקטות וטילים"
+      },
+      "alert_cat_102": {
+        "name": "תרגיל - כללי"
+      },
+      "alert_cat_103": {
+        "name": "תרגיל - רעידת אדמה"
+      },
+      "alert_cat_104": {
+        "name": "תרגיל - אירוע רדיולוגי"
+      },
+      "alert_cat_105": {
+        "name": "תרגיל - צונאמי"
+      },
+      "alert_cat_106": {
+        "name": "תרגיל - חדירת כלי טיס עוין"
+      },
+      "alert_cat_107": {
+        "name": "תרגיל - חומרים מסוכנים"
+      },
+      "alert_cat_110": {
+        "name": "תרגיל - עדכון"
+      },
+      "alert_cat_113": {
+        "name": "תרגיל - חדירת מחבלים"
       }
     },
     "sensor": {
-      "daily_alert_count": {
-        "name": "מונה התרעות יומי"
-      },
-      "weekly_alert_count": {
-        "name": "מונה התרעות שבועי"
-      },
-      "monthly_alert_count": {
-        "name": "מונה התרעות חודשי"
-      },
-      "yearly_alert_count": {
-        "name": "מונה התרעות שנתי"
-      },
       "last_alert": {
         "name": "התרעה אחרונה"
       },
-      "daily_alert_count_nationwide": {
-        "name": "מונה התרעות יומי (ארצי)"
-      },
-      "weekly_alert_count_nationwide": {
-        "name": "מונה התרעות שבועי (ארצי)"
-      },
-      "monthly_alert_count_nationwide": {
-        "name": "מונה התרעות חודשי (ארצי)"
-      },
-      "yearly_alert_count_nationwide": {
-        "name": "מונה התרעות שנתי (ארצי)"
-      },
       "alert_type": {
         "name": "סוג התרעה"
+      },
+      "alert_type_nationwide": {
+        "name": "סוג התרעה (ארצי)"
+      },
+      "alerts_history": {
+        "name": "היסטוריית התרעות"
+      },
+      "alerts_history_nationwide": {
+        "name": "היסטוריית התרעות (ארצי)"
       }
     }
   }

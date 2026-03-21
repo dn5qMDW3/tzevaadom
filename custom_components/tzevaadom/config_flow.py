@@ -37,30 +37,18 @@ from .const import (
     CONF_ENABLE_NATIONWIDE,
     CONF_POLL_INTERVAL,
     CONF_PROXY_URL,
-    CONF_WEEKLY_RESET_DAY,
     DATA_SOURCE_OREF,
     DATA_SOURCE_OREF_PROXY,
     DATA_SOURCE_TZOFAR,
     DEFAULT_ENABLE_NATIONWIDE,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL_TZOFAR,
-    DEFAULT_WEEKLY_RESET_DAY,
     DOMAIN,
 )
 from .definitions import DefinitionsManager
 from .helpers import get_entry_option, validate_proxy_url
 
 _LOGGER = logging.getLogger(__name__)
-
-WEEKDAYS = {
-    0: "Monday",
-    1: "Tuesday",
-    2: "Wednesday",
-    3: "Thursday",
-    4: "Friday",
-    5: "Saturday",
-    6: "Sunday",
-}
 
 DATA_SOURCE_OPTIONS = [
     {"label": "Tzofar / tzevaadom.co.il (Worldwide)", "value": DATA_SOURCE_TZOFAR},
@@ -275,7 +263,6 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_CITIES: self._selected_cities,
                 CONF_CATEGORIES: self._selected_categories,
                 CONF_POLL_INTERVAL: int(user_input.get(CONF_POLL_INTERVAL, default_interval)),
-                CONF_WEEKLY_RESET_DAY: int(user_input.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)),
                 CONF_ENABLE_NATIONWIDE: user_input.get(CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE),
                 "selected_districts": self._selected_areas,
             }
@@ -300,10 +287,6 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         min_interval = 3 if self._data_source == DATA_SOURCE_TZOFAR else 2
 
-        weekday_options = [
-            {"label": name, "value": str(day)} for day, name in WEEKDAYS.items()
-        ]
-
         return self.async_show_form(
             step_id="options",
             data_schema=vol.Schema(
@@ -313,15 +296,6 @@ class TzevaadomConfigFlow(ConfigFlow, domain=DOMAIN):
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=min_interval, max=10, step=1, mode=NumberSelectorMode.SLIDER
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_WEEKLY_RESET_DAY,
-                        default=str(DEFAULT_WEEKLY_RESET_DAY),
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=weekday_options,
-                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                     vol.Optional(
@@ -450,19 +424,12 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     CONF_POLL_INTERVAL: int(
                         user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
                     ),
-                    CONF_WEEKLY_RESET_DAY: int(
-                        user_input.get(CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY)
-                    ),
                     CONF_ENABLE_NATIONWIDE: user_input.get(
                         CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
                     ),
                     "selected_districts": self._selected_areas,
                 }
             )
-
-        weekday_options = [
-            {"label": name, "value": str(day)} for day, name in WEEKDAYS.items()
-        ]
 
         return self.async_show_form(
             step_id="settings",
@@ -476,19 +443,6 @@ class TzevaadomOptionsFlow(OptionsFlow):
                     ): NumberSelector(
                         NumberSelectorConfig(
                             min=2, max=10, step=1, mode=NumberSelectorMode.SLIDER
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_WEEKLY_RESET_DAY,
-                        default=str(
-                            get_entry_option(
-                                self._config_entry, CONF_WEEKLY_RESET_DAY, DEFAULT_WEEKLY_RESET_DAY
-                            )
-                        ),
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=weekday_options,
-                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                     vol.Optional(

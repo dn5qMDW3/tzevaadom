@@ -95,7 +95,6 @@ CONF_AREAS = "areas"
 CONF_CITIES = "cities"
 CONF_CATEGORIES = "categories"
 CONF_POLL_INTERVAL = "poll_interval"
-CONF_WEEKLY_RESET_DAY = "weekly_reset_day"
 CONF_ENABLE_NATIONWIDE = "enable_nationwide"
 CONF_PROXY_URL = "proxy_url"
 
@@ -106,7 +105,6 @@ ALERT_RETENTION_TIMEOUT = 30 * 60  # 30 minutes
 # Defaults
 DEFAULT_POLL_INTERVAL = 2  # seconds
 DEFAULT_POLL_INTERVAL_TZOFAR = 3  # seconds (matches Tzofar's backup poll rate)
-DEFAULT_WEEKLY_RESET_DAY = 6  # Sunday (0=Monday in Python, 6=Sunday)
 DEFAULT_ENABLE_NATIONWIDE = True
 
 # Alert categories — keyed by Oref matrix_id

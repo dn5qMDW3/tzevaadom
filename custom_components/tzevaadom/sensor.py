@@ -4,19 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
 from .coordinator import OrefDataUpdateCoordinator
-from .counters import AlertCounterManager
 from .entity import TzevaadomEntity
 from .helpers import get_entry_option
-
-COUNTER_PERIODS = ("daily", "weekly", "monthly", "yearly")
 
 
 async def async_setup_entry(
@@ -27,110 +23,22 @@ async def async_setup_entry(
     """Set up Tzeva Adom sensors."""
     entry_data = hass.data[DOMAIN][config_entry.entry_id]
     coordinator: OrefDataUpdateCoordinator = entry_data["coordinator"]
-    counter_manager: AlertCounterManager = entry_data["counter_manager"]
 
     entities: list[SensorEntity] = [
-        TzevaadomCounterSensor(coordinator, counter_manager, period, nationwide=False)
-        for period in COUNTER_PERIODS
+        TzevaadomLastAlertSensor(coordinator),
+        TzevaadomAlertTypeSensor(coordinator, nationwide=False),
+        TzevaadomAlertsHistorySensor(coordinator, nationwide=False),
     ]
-    entities.append(TzevaadomLastAlertSensor(coordinator))
-    entities.append(TzevaadomAlertTypeSensor(coordinator, nationwide=False))
 
-    # Add nationwide counters + alert type if enabled
+    # Add nationwide sensors if enabled
     enable_nationwide = get_entry_option(
         config_entry, CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE
     )
     if enable_nationwide:
-        entities.extend(
-            TzevaadomCounterSensor(
-                coordinator, counter_manager, period, nationwide=True
-            )
-            for period in COUNTER_PERIODS
-        )
         entities.append(TzevaadomAlertTypeSensor(coordinator, nationwide=True))
+        entities.append(TzevaadomAlertsHistorySensor(coordinator, nationwide=True))
 
     async_add_entities(entities)
-
-
-class TzevaadomCounterSensor(TzevaadomEntity, RestoreEntity, SensorEntity):
-    """Sensor for alert counters (daily/weekly/monthly/yearly), filtered or nationwide."""
-
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_icon = "mdi:counter"
-
-    def __init__(
-        self,
-        coordinator: OrefDataUpdateCoordinator,
-        counter_manager: AlertCounterManager,
-        period: str,
-        *,
-        nationwide: bool = False,
-    ) -> None:
-        """Initialize the counter sensor."""
-        super().__init__(coordinator)
-        self._counter_manager = counter_manager
-        self._period = period
-        self._nationwide = nationwide
-
-        suffix = f"{period}_count_nationwide" if nationwide else f"{period}_count"
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{suffix}"
-        self._attr_translation_key = (
-            f"{period}_alert_count_nationwide" if nationwide else f"{period}_alert_count"
-        )
-
-    @property
-    def _counter_attr(self) -> str:
-        """Return the counter manager attribute name for this sensor."""
-        return (
-            f"{self._period}_count_nationwide"
-            if self._nationwide
-            else f"{self._period}_count"
-        )
-
-    @property
-    def native_value(self) -> int:
-        """Return the counter value."""
-        return getattr(self._counter_manager, self._counter_attr, 0)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return counter metadata."""
-        attrs: dict[str, Any] = {"period": self._period}
-        if self._nationwide:
-            attrs["scope"] = "nationwide"
-        return attrs
-
-    async def async_added_to_hass(self) -> None:
-        """Restore state on startup."""
-        await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
-            try:
-                restored = int(last_state.state)
-                current = getattr(self._counter_manager, self._counter_attr, 0)
-                if current == 0 and restored > 0:
-                    setattr(self._counter_manager, self._counter_attr, restored)
-            except (ValueError, TypeError):
-                pass
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        if self.coordinator.data:
-            new_alerts = (
-                self.coordinator.data.new_alerts_all
-                if self._nationwide
-                else self.coordinator.data.new_alerts
-            )
-            if new_alerts:
-                record = (
-                    self._counter_manager.record_alert_nationwide
-                    if self._nationwide
-                    else self._counter_manager.record_alert
-                )
-                for alert in new_alerts:
-                    record(alert.id)
-                self.hass.async_create_task(self._counter_manager.async_save())
-        self.async_write_ha_state()
 
 
 class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
@@ -223,4 +131,65 @@ class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
             "category_name_he": alert.category_name_he,
             "category_name_en": alert.category_name_en,
             "active_categories": active_cats,
+        }
+
+
+class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
+    """Sensor exposing recent alerts history from the API.
+
+    State: number of alerts in history.
+    Attributes: list of recent alerts with timestamps, categories, and cities.
+    Users can build template sensors/automations from this data.
+    """
+
+    _attr_icon = "mdi:history"
+
+    def __init__(
+        self,
+        coordinator: OrefDataUpdateCoordinator,
+        *,
+        nationwide: bool = False,
+    ) -> None:
+        """Initialize the alerts history sensor."""
+        super().__init__(coordinator)
+        self._nationwide = nationwide
+        suffix = "alerts_history_nationwide" if nationwide else "alerts_history"
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{suffix}"
+        self._attr_translation_key = suffix
+        self._history: list[dict[str, Any]] = []
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Accumulate alerts into history on each coordinator update."""
+        if self.coordinator.data is None:
+            self.async_write_ha_state()
+            return
+
+        new_alerts = (
+            self.coordinator.data.new_alerts_all
+            if self._nationwide
+            else self.coordinator.data.new_alerts
+        )
+
+        if new_alerts:
+            for alert in new_alerts:
+                self._history.append(alert.to_state_attributes())
+
+            # Cap history to last 100 entries
+            if len(self._history) > 100:
+                self._history = self._history[-100:]
+
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> int:
+        """Return count of alerts in history."""
+        return len(self._history)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the full alerts history list."""
+        return {
+            "alerts": self._history,
+            "count": len(self._history),
         }
