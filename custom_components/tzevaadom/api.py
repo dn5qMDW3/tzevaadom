@@ -141,7 +141,10 @@ class OrefApiClient(AlertApiClient):
         return []
 
     async def get_history(self) -> list[dict[str, Any]]:
-        """Fetch alert history."""
+        """Fetch alert history.
+
+        Returns Oref history items as-is (they include 'alertDate' for timestamp).
+        """
         text = await self._fetch(OREF_HISTORY_URL)
         if not text or text == "null":
             return []
@@ -248,7 +251,11 @@ class TzofarApiClient(AlertApiClient):
         return [self._notification_to_alert_dict(n) for n in data if n]
 
     async def get_history(self) -> list[dict[str, Any]]:
-        """Fetch alert history from Tzofar."""
+        """Fetch alert history from Tzofar.
+
+        Returns a list of alert dicts, each with a 'timestamp' field (unix epoch).
+        Sorted newest-first.
+        """
         text = await self._fetch(TZOFAR_HISTORY_URL)
         if not text or text == "null":
             return []
@@ -260,11 +267,15 @@ class TzofarApiClient(AlertApiClient):
         if not isinstance(data, list):
             return []
         # Tzofar history is grouped: [{id, alerts: [{time, cities, threat, isDrill}]}]
-        # Flatten into OrefAlert-compatible dicts
+        # Flatten into dicts with timestamps preserved
         result = []
         for group in data:
+            group_id = group.get("id", "")
             for alert in group.get("alerts", []):
-                result.append(self._notification_to_alert_dict(alert))
+                d = self._notification_to_alert_dict(alert)
+                d["timestamp"] = alert.get("time", 0)
+                d["group_id"] = group_id
+                result.append(d)
         return result
 
     async def get_districts(self) -> list[dict[str, Any]]:

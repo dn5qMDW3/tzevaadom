@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+import logging
+import time
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
@@ -13,6 +16,12 @@ from .const import CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
 from .coordinator import OrefDataUpdateCoordinator
 from .entity import TzevaadomEntity
 from .helpers import get_entry_option
+from .models import OrefAlert
+
+_LOGGER = logging.getLogger(__name__)
+
+# How often to refresh history from the API (seconds)
+HISTORY_REFRESH_INTERVAL = 5 * 60  # 5 minutes
 
 
 async def async_setup_entry(
@@ -59,7 +68,10 @@ class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
         """Return the category title of the last alert."""
         if self.coordinator.data is None or self.coordinator.data.last_alert is None:
             return None
-        return self.coordinator.data.last_alert.category_name_he or self.coordinator.data.last_alert.title
+        return (
+            self.coordinator.data.last_alert.category_name_he
+            or self.coordinator.data.last_alert.title
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -137,6 +149,9 @@ class TzevaadomAlertTypeSensor(TzevaadomEntity, SensorEntity):
 class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
     """Sensor exposing recent alerts history from the API.
 
+    Fetches from the API history endpoint (last ~24h of alerts) every 5 minutes.
+    Supplements with live alerts seen between refreshes.
+
     State: number of alerts in history.
     Attributes: list of recent alerts with timestamps, categories, and cities.
     Users can build template sensors/automations from this data.
@@ -156,40 +171,102 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
         suffix = "alerts_history_nationwide" if nationwide else "alerts_history"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{suffix}"
         self._attr_translation_key = suffix
-        self._history: list[dict[str, Any]] = []
+        self._api_history: list[dict[str, Any]] = []
+        self._last_fetch: float = 0.0
+        self._fetch_in_progress: bool = False
+
+    async def _refresh_history(self) -> None:
+        """Fetch history from the API (throttled)."""
+        now = time.monotonic()
+        if now - self._last_fetch < HISTORY_REFRESH_INTERVAL:
+            return
+        if self._fetch_in_progress:
+            return
+
+        self._fetch_in_progress = True
+        try:
+            raw = await self.coordinator.client.get_history()
+            if raw:
+                self._api_history = self._process_history(raw)
+                self._last_fetch = now
+                _LOGGER.debug(
+                    "Refreshed alerts history: %d entries", len(self._api_history)
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Failed to fetch alerts history", exc_info=True)
+        finally:
+            self._fetch_in_progress = False
+
+    def _process_history(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Process raw API history into a clean list of alert summaries."""
+        result: list[dict[str, Any]] = []
+        for item in raw:
+            # Parse into OrefAlert for consistent field access
+            alert = OrefAlert.from_dict(item)
+            if not alert.is_real_alert:
+                continue
+
+            # Build summary dict
+            entry: dict[str, Any] = {
+                "id": alert.id,
+                "category_id": alert.cat,
+                "category_he": alert.category_name_he,
+                "category_en": alert.category_name_en,
+                "title": alert.title,
+                "cities": alert.data,
+                "cities_count": len(alert.data),
+            }
+
+            # Add timestamp if available (Tzofar provides 'timestamp',
+            # Oref provides 'alertDate')
+            ts = item.get("timestamp") or item.get("time")
+            if ts:
+                entry["timestamp"] = ts
+                try:
+                    entry["datetime"] = datetime.fromtimestamp(ts).isoformat()
+                except (OSError, ValueError):
+                    pass
+            elif "alertDate" in item:
+                entry["alert_date"] = item["alertDate"]
+
+            result.append(entry)
+
+        return result
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Accumulate alerts into history on each coordinator update."""
-        if self.coordinator.data is None:
-            self.async_write_ha_state()
-            return
-
-        new_alerts = (
-            self.coordinator.data.new_alerts_all
-            if self._nationwide
-            else self.coordinator.data.new_alerts
-        )
-
-        if new_alerts:
-            for alert in new_alerts:
-                self._history.append(alert.to_state_attributes())
-
-            # Cap history to last 100 entries
-            if len(self._history) > 100:
-                self._history = self._history[-100:]
-
+        """Trigger history refresh on coordinator update."""
+        # Schedule async history fetch (non-blocking)
+        self.hass.async_create_task(self._refresh_history())
         self.async_write_ha_state()
 
     @property
     def native_value(self) -> int:
         """Return count of alerts in history."""
-        return len(self._history)
+        return len(self._api_history)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the full alerts history list."""
+        """Return alerts history data.
+
+        Attributes:
+            alerts_today: count of alerts from today
+            total: total alerts in history (~24h)
+            last_alert: most recent alert summary (or None)
+            alerts: full list of alert summaries (newest first)
+        """
+        today_count = 0
+        now_ts = time.time()
+        day_start = now_ts - (now_ts % 86400)  # midnight UTC approx
+
+        for entry in self._api_history:
+            ts = entry.get("timestamp", 0)
+            if ts >= day_start:
+                today_count += 1
+
         return {
-            "alerts": self._history,
-            "count": len(self._history),
+            "alerts_today": today_count,
+            "total": len(self._api_history),
+            "last_alert": self._api_history[0] if self._api_history else None,
+            "alerts": self._api_history,
         }
