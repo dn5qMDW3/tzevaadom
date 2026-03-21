@@ -176,6 +176,10 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         5. Build active alerts from retained state (NOT just current poll)
         6. Apply filters, detect new alerts, fire events
         """
+        # Clear per-cycle caches (e.g. Tzofar feed cache)
+        if hasattr(self.client, "clear_feed_cache"):
+            self.client.clear_feed_cache()
+
         try:
             raw_alerts = await self.client.get_alerts()
         except OrefApiError as err:
@@ -344,6 +348,12 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         if filtered_alerts:
             last_alert = filtered_alerts[0]
 
+        # Compute time in shelter from retained cities
+        shelter_seconds: int | None = None
+        if self._retained_cities:
+            oldest_ts = min(ts for _, ts in self._retained_cities.values())
+            shelter_seconds = int(now - oldest_ts)
+
         data = OrefAlertData(
             active_alerts=filtered_alerts,
             all_alerts=real_alerts,
@@ -353,6 +363,8 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             early_warnings=filtered_early_warnings,
             new_early_warnings=new_early_warnings,
             event_ended_cities=sorted(event_ended_cities) if event_ended_cities else [],
+            time_in_shelter_seconds=shelter_seconds,
+            retained_cities_count=len(self._retained_cities),
         )
 
         self._last_data = data

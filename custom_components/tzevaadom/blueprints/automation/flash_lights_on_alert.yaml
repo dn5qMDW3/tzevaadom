@@ -1,9 +1,9 @@
 blueprint:
   name: "Tzeva Adom: Flash Lights on Alert"
   description: >
-    Flashes lights red when a new alert is detected, then restores
-    the previous state when the alert clears. Color changes by
-    alert category (red=rockets, orange=hostile aircraft, yellow=earthquake).
+    Flashes lights when a new alert is detected, then turns them off
+    when the alert clears. Color changes by alert category
+    (red=rockets, orange=hostile aircraft, yellow=earthquake).
   domain: automation
   input:
     light_target:

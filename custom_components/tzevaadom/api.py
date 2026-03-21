@@ -5,11 +5,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import json
 import logging
+import time
 from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
-
-import time
 
 from .const import (
     ALERT_CATEGORIES,
@@ -333,6 +332,7 @@ class TzofarApiClient(AlertApiClient):
         """Initialize the API client."""
         self._session = session
         self._city_id_map: dict[int, str] | None = None
+        self._feed_cache: tuple[list[dict[str, Any]], set[str]] | None = None
 
     @staticmethod
     def _map_threat_to_cat(threat: int, is_drill: bool) -> int:
@@ -489,57 +489,8 @@ class TzofarApiClient(AlertApiClient):
         (instructionType=0), not through the /notifications endpoint.
         The /ios/feed endpoint provides both alerts and instructions.
         """
-        try:
-            text = await self._fetch(TZOFAR_FEED_URL)
-        except OrefApiError:
-            return []
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            _LOGGER.warning("Failed to parse Tzofar feed response")
-            return []
-
-        instructions = data.get("instructions", [])
-        if not instructions:
-            return []
-
-        # Ensure we can resolve city IDs to names
-        await self._ensure_city_map()
-        if not self._city_id_map:
-            _LOGGER.debug("No city map available, skipping early warnings")
-            return []
-
-        now = time.time()
-        results: list[dict[str, Any]] = []
-        for inst in instructions:
-            if inst.get("instructionType") != TZOFAR_INSTRUCTION_EARLY_WARNING:
-                continue
-            # Skip expired instructions
-            pin_until = inst.get("pinUntil")
-            if pin_until and pin_until < now:
-                continue
-            # Resolve numeric city IDs to Hebrew names
-            city_ids = inst.get("citiesIds", [])
-            city_names = [
-                self._city_id_map[cid]
-                for cid in city_ids
-                if cid in self._city_id_map
-            ]
-            if not city_names:
-                continue
-            results.append({
-                "id": str(inst.get("id", "")),
-                "cat": 14,
-                "title": OREF_TITLE_EARLY_WARNING_ALT,
-                "desc": inst.get("titleEn", "Early Warning"),
-                "data": city_names,
-            })
-        _LOGGER.debug(
-            "Tzofar early warnings: %d active from %d instructions",
-            len(results),
-            len(instructions),
-        )
-        return results
+        warnings, _ = await self._get_feed_data()
+        return warnings
 
     async def get_event_ended_cities(self) -> set[str]:
         """Fetch cities with explicit all-clear from Tzofar feed instructions.
@@ -547,45 +498,96 @@ class TzofarApiClient(AlertApiClient):
         Tzofar delivers "Event Ended" via SYSTEM_MESSAGE instructions
         (instructionType=1) on the /ios/feed endpoint.
         """
+        _, ended = await self._get_feed_data()
+        return ended
+
+    async def _get_feed_data(
+        self,
+    ) -> tuple[list[dict[str, Any]], set[str]]:
+        """Fetch and parse the /ios/feed endpoint once.
+
+        Returns (early_warnings, event_ended_cities) from a single HTTP call.
+        Both get_early_warnings() and get_event_ended_cities() delegate here
+        so the feed is only fetched once per coordinator update cycle.
+        """
+        # Return cached result if available for this cycle
+        if self._feed_cache is not None:
+            return self._feed_cache
+
+        early_warnings: list[dict[str, Any]] = []
+        ended_cities: set[str] = set()
+
         try:
             text = await self._fetch(TZOFAR_FEED_URL)
         except OrefApiError:
-            return set()
+            return early_warnings, ended_cities
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
-            return set()
+            _LOGGER.warning("Failed to parse Tzofar feed response")
+            return early_warnings, ended_cities
 
         instructions = data.get("instructions", [])
         if not instructions:
-            return set()
+            return early_warnings, ended_cities
 
         await self._ensure_city_map()
         if not self._city_id_map:
-            return set()
+            _LOGGER.debug("No city map available, skipping feed parsing")
+            return early_warnings, ended_cities
 
-        # Collect cities from recent END_EVENT instructions (last 15 minutes)
         now = time.time()
-        ended_cities: set[str] = set()
-        for inst in instructions:
-            if inst.get("instructionType") != TZOFAR_INSTRUCTION_END_EVENT:
-                continue
-            # Only consider recent event-ended (within 15 min)
-            inst_time = inst.get("time", 0)
-            if now - inst_time > 15 * 60:
-                continue
-            city_ids = inst.get("citiesIds", [])
-            for cid in city_ids:
-                name = self._city_id_map.get(cid)
-                if name:
-                    ended_cities.add(name)
 
-        if ended_cities:
-            _LOGGER.debug(
-                "Tzofar event-ended: %d cities from feed instructions",
-                len(ended_cities),
-            )
-        return ended_cities
+        for inst in instructions:
+            inst_type = inst.get("instructionType")
+
+            if inst_type == TZOFAR_INSTRUCTION_EARLY_WARNING:
+                # Skip expired instructions
+                pin_until = inst.get("pinUntil")
+                if pin_until and pin_until < now:
+                    continue
+                # Resolve numeric city IDs to Hebrew names
+                city_ids = inst.get("citiesIds", [])
+                city_names = [
+                    self._city_id_map[cid]
+                    for cid in city_ids
+                    if cid in self._city_id_map
+                ]
+                if not city_names:
+                    continue
+                early_warnings.append({
+                    "id": str(inst.get("id", "")),
+                    "cat": 14,
+                    "title": OREF_TITLE_EARLY_WARNING_ALT,
+                    "desc": inst.get("titleEn", "Early Warning"),
+                    "data": city_names,
+                })
+
+            elif inst_type == TZOFAR_INSTRUCTION_END_EVENT:
+                # Only consider recent event-ended (within 15 min)
+                inst_time = inst.get("time", 0)
+                if now - inst_time > 15 * 60:
+                    continue
+                city_ids = inst.get("citiesIds", [])
+                for cid in city_ids:
+                    name = self._city_id_map.get(cid)
+                    if name:
+                        ended_cities.add(name)
+
+        _LOGGER.debug(
+            "Tzofar feed: %d early warnings, %d event-ended cities from %d instructions",
+            len(early_warnings),
+            len(ended_cities),
+            len(instructions),
+        )
+
+        # Cache for the current update cycle
+        self._feed_cache = (early_warnings, ended_cities)
+        return early_warnings, ended_cities
+
+    def clear_feed_cache(self) -> None:
+        """Clear the feed cache. Called by coordinator at start of each update."""
+        self._feed_cache = None
 
     async def test_connection(self) -> bool:
         """Test if the Tzofar API is reachable."""

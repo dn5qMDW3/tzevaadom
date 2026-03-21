@@ -152,6 +152,10 @@ class OrefAlertData:
     new_early_warnings: list[OrefAlert] = field(default_factory=list)
     # Event ended tracking
     event_ended_cities: list[str] = field(default_factory=list)
+    # Time in shelter (seconds since oldest retained alert started)
+    time_in_shelter_seconds: int | None = None
+    # Count of cities with retained (active) alerts
+    retained_cities_count: int = 0
 
     @property
     def is_active(self) -> bool:

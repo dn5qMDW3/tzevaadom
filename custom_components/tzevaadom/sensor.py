@@ -8,10 +8,11 @@ import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import CONF_ENABLE_NATIONWIDE, DEFAULT_ENABLE_NATIONWIDE, DOMAIN
 from .coordinator import OrefDataUpdateCoordinator
@@ -60,8 +61,11 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
-    """Sensor showing details of the last alert."""
+class TzevaadomLastAlertSensor(TzevaadomEntity, RestoreEntity, SensorEntity):
+    """Sensor showing details of the last alert.
+
+    Implements RestoreEntity so that the last alert state survives HA restarts.
+    """
 
     _attr_icon = "mdi:alert-circle-outline"
 
@@ -72,12 +76,21 @@ class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
             f"{coordinator.config_entry.entry_id}_last_alert"
         )
         self._attr_translation_key = "last_alert"
+        self._restored_value: str | None = None
+        self._restored_attrs: dict[str, Any] = {}
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last alert state on startup."""
+        await super().async_added_to_hass()
+        if (last_state := await self.async_get_last_state()) is not None:
+            self._restored_value = last_state.state
+            self._restored_attrs = dict(last_state.attributes)
 
     @property
     def native_value(self) -> str | None:
         """Return the category title of the last alert."""
         if self.coordinator.data is None or self.coordinator.data.last_alert is None:
-            return None
+            return self._restored_value
         return (
             self.coordinator.data.last_alert.category_name_he
             or self.coordinator.data.last_alert.title
@@ -87,15 +100,14 @@ class TzevaadomLastAlertSensor(TzevaadomEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return last alert details including time since alert."""
         if self.coordinator.data is None or self.coordinator.data.last_alert is None:
-            return {}
+            # Return restored attributes if available (after HA restart)
+            return self._restored_attrs
         attrs = self.coordinator.data.last_alert.to_state_attributes()
         # Add time_since from retention tracking (if alert is retained)
-        retained = self.coordinator._retained_cities
-        if retained:
-            # Earliest start time among retained cities
-            oldest_ts = min(ts for _, ts in retained.values())
-            elapsed = int(time.time() - oldest_ts)
-            attrs["time_in_shelter_seconds"] = elapsed
+        if self.coordinator.data.time_in_shelter_seconds is not None:
+            attrs["time_in_shelter_seconds"] = (
+                self.coordinator.data.time_in_shelter_seconds
+            )
         return attrs
 
 
@@ -185,7 +197,6 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
     """
 
     _attr_icon = "mdi:history"
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -334,8 +345,10 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Trigger history refresh on coordinator update."""
-        # Schedule async history fetch (non-blocking)
-        self.hass.async_create_task(self._refresh_history())
+        # Schedule async history fetch (non-blocking, tracked for cleanup on unload)
+        self.coordinator.config_entry.async_create_background_task(
+            self.hass, self._refresh_history(), "tzevaadom_history_refresh"
+        )
         self.async_write_ha_state()
 
     @property

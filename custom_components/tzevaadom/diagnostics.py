@@ -36,7 +36,7 @@ async def async_get_config_entry_diagnostics(
             "early_warnings_count": len(data.early_warnings),
             "event_ended_cities": data.event_ended_cities,
             "last_alert_id": data.last_alert.id if data.last_alert else None,
-            "retained_cities_count": len(coordinator._retained_cities),
+            "retained_cities_count": data.retained_cities_count,
         }
 
     # Definitions state

@@ -1,4 +1,6 @@
 {
   "name": "Tzeva Adom",
-  "render_readme": true
+  "render_readme": true,
+  "country": "IL",
+  "homeassistant": "2024.1.0"
 }
