@@ -1,0 +1,104 @@
+blueprint:
+  name: "Tzeva Adom: Flash Lights on Alert"
+  description: >
+    Flashes lights red when a new alert is detected, then restores
+    the previous state when the alert clears. Color changes by
+    alert category (red=rockets, orange=hostile aircraft, yellow=earthquake).
+  domain: automation
+  input:
+    light_target:
+      name: Lights
+      description: Lights to flash during alert
+      selector:
+        target:
+          entity:
+            domain: light
+    alert_sensor:
+      name: Alert Binary Sensor
+      description: The Tzeva Adom alert binary sensor to monitor
+      default: binary_sensor.tzeva_adom_alert
+      selector:
+        entity:
+          domain: binary_sensor
+          integration: tzevaadom
+    flash_count:
+      name: Flash Count
+      description: Number of times to flash before staying on
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+    skip_drills:
+      name: Skip Drills
+      description: Do not flash for drill alerts
+      default: true
+      selector:
+        boolean:
+
+trigger:
+  - platform: state
+    entity_id: !input alert_sensor
+    to: "on"
+    id: alert_on
+  - platform: state
+    entity_id: !input alert_sensor
+    to: "off"
+    id: alert_off
+
+condition: []
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: alert_on
+          - condition: template
+            value_template: >
+              {% if skip_drills %}
+                {{ state_attr(trigger.entity_id, 'is_drill') != true }}
+              {% else %}
+                true
+              {% endif %}
+        sequence:
+          # Determine color based on category
+          - variables:
+              cat: "{{ state_attr(trigger.entity_id, 'category') | int(1) }}"
+              color: >
+                {% if cat == 1 %}[255, 0, 0]
+                {% elif cat == 6 %}[255, 80, 0]
+                {% elif cat == 3 %}[255, 255, 0]
+                {% elif cat == 13 %}[255, 0, 80]
+                {% else %}[255, 0, 0]{% endif %}
+          # Flash sequence
+          - repeat:
+              count: !input flash_count
+              sequence:
+                - service: light.turn_on
+                  target: !input light_target
+                  data:
+                    rgb_color: "{{ color }}"
+                    brightness: 255
+                - delay:
+                    milliseconds: 500
+                - service: light.turn_off
+                  target: !input light_target
+                - delay:
+                    milliseconds: 500
+          # Stay on solid after flashing
+          - service: light.turn_on
+            target: !input light_target
+            data:
+              rgb_color: "{{ color }}"
+              brightness: 255
+
+      - conditions:
+          - condition: trigger
+            id: alert_off
+        sequence:
+          # Restore previous state
+          - service: light.turn_off
+            target: !input light_target
+
+mode: restart

@@ -23,6 +23,8 @@ class OrefAlert:
     title: str
     desc: str
     data: list[str] = field(default_factory=list)
+    # Minimum shelter time in seconds across alerting cities (None if unknown)
+    shelter_time: int | None = None
 
     @classmethod
     def from_dict(cls, raw: dict) -> OrefAlert:
@@ -71,10 +73,10 @@ class OrefAlert:
     def is_event_ended(self) -> bool:
         """Return True if this is an 'Event Ended' notification.
 
-        Oref usually sends these as cat=13, but has been observed with other
-        categories too (e.g. cat=10). Match by title alone to be safe.
+        Uses 'in' rather than '==' to catch category-specific variants like
+        "ירי רקטות וטילים - האירוע הסתיים" and "חדירת כלי טיס עוין - האירוע הסתיים".
         """
-        return self.title == OREF_TITLE_EVENT_ENDED
+        return OREF_TITLE_EVENT_ENDED in self.title
 
     @property
     def category_info(self) -> dict[str, str]:
@@ -96,19 +98,31 @@ class OrefAlert:
         """Return MDI icon for this category."""
         return self.category_info.get("icon", "mdi:alert")
 
+    @property
+    def priority(self) -> int:
+        """Return alert priority (higher = more severe). From Oref alertCategories.json."""
+        return self.category_info.get("priority", 0)
+
     def to_event_data(self) -> dict[str, Any]:
         """Return dict suitable for firing as an HA event."""
-        return {
+        data: dict[str, Any] = {
             "id": self.id,
             "cat": self.cat,
             "title": self.title,
             "desc": self.desc,
             "cities": self.data,
+            "is_drill": self.is_drill,
+            "category_name_he": self.category_name_he,
+            "category_name_en": self.category_name_en,
+            "priority": self.priority,
         }
+        if self.shelter_time is not None:
+            data["shelter_time"] = self.shelter_time
+        return data
 
     def to_state_attributes(self) -> dict[str, Any]:
         """Return dict suitable for entity extra_state_attributes."""
-        return {
+        attrs: dict[str, Any] = {
             "alert_id": self.id,
             "category": self.cat,
             "category_name_he": self.category_name_he,
@@ -116,7 +130,12 @@ class OrefAlert:
             "title": self.title,
             "description": self.desc,
             "cities": self.data,
+            "is_drill": self.is_drill,
+            "priority": self.priority,
         }
+        if self.shelter_time is not None:
+            attrs["shelter_time"] = self.shelter_time
+        return attrs
 
 
 @dataclass
@@ -148,3 +167,13 @@ class OrefAlertData:
     def is_early_warning_active(self) -> bool:
         """Return True if early warnings are active."""
         return bool(self.early_warnings)
+
+    @property
+    def active_cities_count(self) -> int:
+        """Return total number of cities under alert nationwide."""
+        return sum(len(a.data) for a in self.all_alerts)
+
+    @property
+    def filtered_cities_count(self) -> int:
+        """Return number of filtered cities under alert."""
+        return sum(len(a.data) for a in self.active_alerts)

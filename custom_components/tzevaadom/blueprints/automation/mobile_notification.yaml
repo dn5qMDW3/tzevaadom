@@ -1,0 +1,94 @@
+blueprint:
+  name: "Tzeva Adom: Mobile Notification"
+  description: >
+    Sends a mobile notification with alert details when a new alert
+    is detected. Includes category, cities, shelter time, and
+    a critical notification option for iOS.
+  domain: automation
+  input:
+    notify_service:
+      name: Notification Service
+      description: >
+        The notify service to use (e.g., notify.mobile_app_my_phone)
+      selector:
+        text:
+    critical:
+      name: Critical Notification (iOS)
+      description: >
+        Send as critical notification that bypasses Do Not Disturb.
+        iOS only — ignored on Android.
+      default: true
+      selector:
+        boolean:
+    language:
+      name: Language
+      description: Notification language
+      default: he
+      selector:
+        select:
+          options:
+            - label: Hebrew
+              value: he
+            - label: English
+              value: en
+    skip_drills:
+      name: Skip Drills
+      description: Do not notify for drill alerts
+      default: true
+      selector:
+        boolean:
+
+trigger:
+  - platform: event
+    event_type: tzevaadom_alert
+
+condition:
+  - condition: template
+    value_template: >
+      {% if skip_drills %}
+        {{ trigger.event.data.is_drill != true }}
+      {% else %}
+        true
+      {% endif %}
+
+action:
+  - variables:
+      lang: !input language
+      is_critical: !input critical
+      alert_type_he: "{{ trigger.event.data.category_name_he }}"
+      alert_type_en: "{{ trigger.event.data.category_name_en }}"
+      cities: "{{ trigger.event.data.cities | join(', ') }}"
+      cities_count: "{{ trigger.event.data.cities | length }}"
+      shelter: "{{ trigger.event.data.get('shelter_time', '') }}"
+      title: >
+        {% if lang == 'he' %}
+          צבע אדום — {{ alert_type_he }}
+        {% else %}
+          Red Alert — {{ alert_type_en }}
+        {% endif %}
+      message: >
+        {% if lang == 'he' %}
+          {{ cities }}
+          {% if shelter %}זמן מיגון: {{ shelter }} שניות{% endif %}
+        {% else %}
+          {{ cities }}
+          {% if shelter %}Shelter time: {{ shelter }} seconds{% endif %}
+        {% endif %}
+  - service: "{{ notify_service }}"
+    data:
+      title: "{{ title }}"
+      message: "{{ message }}"
+      data:
+        push:
+          sound:
+            name: default
+            critical: "{{ 1 if is_critical else 0 }}"
+            volume: 1.0
+        ttl: 0
+        priority: high
+        channel: tzevaadom_alert
+        importance: high
+        tag: "tzevaadom_{{ trigger.event.data.cat }}"
+
+mode: queued
+max: 10

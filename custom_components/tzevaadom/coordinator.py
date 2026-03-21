@@ -22,6 +22,7 @@ from .const import (
     EVENT_TZEVAADOM_ALERT,
     EVENT_TZEVAADOM_EARLY_WARNING,
 )
+from .definitions import DefinitionsManager
 from .helpers import get_entry_option
 from .models import OrefAlert, OrefAlertData
 
@@ -46,9 +47,11 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         hass: HomeAssistant,
         client: AlertApiClient,
         config_entry: ConfigEntry,
+        definitions_manager: DefinitionsManager,
     ) -> None:
         """Initialize the coordinator."""
         self.client = client
+        self.definitions_manager = definitions_manager
         # Note: _selected_areas contains city-level names resolved from districts
         # (resolved during config flow via definitions.get_areas_for_districts)
         self._selected_areas: set[str] = set(
@@ -70,6 +73,9 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         # Alert retention: keep alerts active until explicit all-clear.
         # Maps city name → (alert, first_seen_timestamp)
         self._retained_cities: dict[str, tuple[OrefAlert, float]] = {}
+
+        # Track completed alert durations: list of {cities, category, duration_s, ended_at}
+        self._recent_durations: list[dict] = []
 
         self._last_data: OrefAlertData = OrefAlertData()
 
@@ -118,6 +124,18 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             return False
 
         return True
+
+    def _enrich_alert(self, alert: OrefAlert) -> OrefAlert:
+        """Add shelter_time from definitions to an alert."""
+        shelter = self.definitions_manager.get_min_migun_time(alert.data)
+        if shelter is not None:
+            alert.shelter_time = shelter
+        return alert
+
+    @staticmethod
+    def _sort_by_priority(alerts: list[OrefAlert]) -> list[OrefAlert]:
+        """Sort alerts by priority (highest/most severe first)."""
+        return sorted(alerts, key=lambda a: a.priority, reverse=True)
 
     def _get_retained_alerts(self) -> list[OrefAlert]:
         """Build deduplicated alert list from retained cities.
@@ -215,10 +233,20 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
                     self._retained_cities[city] = (alert, now)
 
         # 2. Remove event-ended cities from retention (the ALL CLEAR)
+        #    Also track how long the alert lasted (duration).
         if event_ended_cities:
             cleared = []
             for city in event_ended_cities:
                 if city in self._retained_cities:
+                    alert, start_ts = self._retained_cities[city]
+                    duration = int(now - start_ts)
+                    self._recent_durations.append({
+                        "city": city,
+                        "category_id": alert.cat,
+                        "category_en": alert.category_name_en,
+                        "duration_seconds": duration,
+                        "ended_at": now,
+                    })
                     cleared.append(city)
                     del self._retained_cities[city]
             if cleared:
@@ -227,6 +255,9 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
                     len(cleared),
                     cleared[:10],
                 )
+            # Keep only last 50 duration records
+            if len(self._recent_durations) > 50:
+                self._recent_durations = self._recent_durations[-50:]
 
         # 3. Auto-expire stale retained alerts (safety timeout)
         expired = [
@@ -246,6 +277,15 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         # This is the key difference: active_alerts comes from retention,
         # not just the current poll. Alerts stay active until all-clear.
         real_alerts = self._get_retained_alerts()
+
+        # Enrich alerts with shelter time from definitions
+        for alert in real_alerts:
+            self._enrich_alert(alert)
+        for alert in early_warnings:
+            self._enrich_alert(alert)
+
+        # Sort by priority (most severe first)
+        real_alerts = self._sort_by_priority(real_alerts)
 
         # Apply location/category filters
         filtered_alerts = [a for a in real_alerts if self.filter_alert(a)]

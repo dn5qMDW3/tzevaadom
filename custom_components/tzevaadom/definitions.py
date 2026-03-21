@@ -75,6 +75,8 @@ class DefinitionsManager:
         )
         self._districts: list[dict[str, Any]] = []
         self._area_to_district: dict[str, str] = {}
+        # City name → shelter time in seconds (from migun_time in districts data)
+        self._city_migun_time: dict[str, int] = {}
 
     async def async_load(self) -> None:
         """Load definitions from storage, falling back to bundled data."""
@@ -82,6 +84,9 @@ class DefinitionsManager:
         if data and "districts" in data:
             self._districts = data["districts"]
             self._build_area_map()
+            # Restore persisted migun_time data
+            if "migun_times" in data:
+                self._city_migun_time = data["migun_times"]
             _LOGGER.debug("Loaded %d districts from storage", len(self._districts))
             return
 
@@ -118,7 +123,10 @@ class DefinitionsManager:
             old_count = len(self._districts)
             self._districts = new_districts
             self._build_area_map()
-            await self._store.async_save({"districts": new_districts})
+            await self._store.async_save({
+                "districts": new_districts,
+                "migun_times": self._city_migun_time,
+            })
             _LOGGER.info(
                 "Updated district definitions: %d -> %d entries",
                 old_count,
@@ -131,8 +139,12 @@ class DefinitionsManager:
     def _parse_districts(
         self, raw_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Parse raw district data from Oref API."""
+        """Parse raw district data from Oref API.
+
+        Also extracts migun_time (shelter time in seconds) per city.
+        """
         district_map: dict[str, list[str]] = {}
+        migun_times: dict[str, int] = {}
 
         for item in raw_data:
             area_name = item.get("label_he") or item.get("label") or item.get("name", "")
@@ -144,6 +156,17 @@ class DefinitionsManager:
             if district not in district_map:
                 district_map[district] = []
             district_map[district].append(area_name)
+
+            # Preserve shelter time (seconds to reach shelter)
+            migun = item.get("migun_time")
+            if migun is not None:
+                try:
+                    migun_times[area_name] = int(migun)
+                except (ValueError, TypeError):
+                    pass
+
+        self._city_migun_time = migun_times
+        _LOGGER.debug("Parsed migun_time for %d cities", len(migun_times))
 
         return [
             {"district": district, "areas": sorted(areas)}
@@ -210,3 +233,19 @@ class DefinitionsManager:
         Returns list of {"label": "city (district)", "value": "city"}.
         """
         return self.get_cities_for_districts(self.get_districts())
+
+    def get_migun_time(self, city: str) -> int | None:
+        """Get shelter time in seconds for a city, or None if unknown."""
+        return self._city_migun_time.get(city)
+
+    def get_min_migun_time(self, cities: list[str]) -> int | None:
+        """Get the minimum shelter time across a list of cities.
+
+        Returns the shortest time (most urgent) or None if no data.
+        """
+        times = [
+            self._city_migun_time[c]
+            for c in cities
+            if c in self._city_migun_time
+        ]
+        return min(times) if times else None

@@ -99,10 +99,19 @@ class TzevaadomAlertBinarySensor(TzevaadomEntity, BinarySensorEntity):
         """Return additional alert details."""
         alerts = self._get_alerts()
         if not alerts:
-            return {"alert_count": 0, "cities": []}
+            return {"alert_count": 0, "cities": [], "cities_count": 0}
 
         attrs = alerts[0].to_state_attributes()
+        all_cities = []
+        for a in alerts:
+            all_cities.extend(a.data)
         attrs["alert_count"] = len(alerts)
+        attrs["cities_count"] = len(all_cities)
+
+        # For nationwide sensor, include total active cities count
+        if not self._filtered and self.coordinator.data:
+            attrs["active_cities_count"] = self.coordinator.data.active_cities_count
+
         return attrs
 
     @property
@@ -206,22 +215,27 @@ class TzevaadomCategoryBinarySensor(TzevaadomEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return category alert details."""
-        base = {
+        base: dict[str, Any] = {
             "alert_count": len(self._cached_alerts),
             "category_id": self._cat_id,
             "category_name_he": self._category_info.get("he", ""),
             "category_name_en": self._category_info.get("en", ""),
+            "is_drill": self._cat_id >= 100,
         }
         if not self._cached_alerts:
             base["cities"] = []
+            base["cities_count"] = 0
             return base
 
         all_cities = []
         for alert in self._cached_alerts:
             all_cities.extend(alert.data)
         base["cities"] = all_cities
+        base["cities_count"] = len(all_cities)
         base["title"] = self._cached_alerts[0].title
         base["description"] = self._cached_alerts[0].desc
+        if self._cached_alerts[0].shelter_time is not None:
+            base["shelter_time"] = self._cached_alerts[0].shelter_time
         return base
 
     @property

@@ -115,114 +115,139 @@ DEFAULT_ENABLE_NATIONWIDE = True
 # Source: https://www.oref.org.il/alerts/alertsTranslation.json
 # The live API `cat` field contains matrix_id values.
 # Drills use matrix_id + 100.
-ALERT_CATEGORIES: dict[int, dict[str, str]] = {
+ALERT_CATEGORIES: dict[int, dict] = {
     # --- Real alerts ---
+    # Priority values from Oref alertCategories.json (higher = more severe)
     1: {
         "he": "ירי רקטות וטילים",
         "en": "Rockets and Missiles",
         "icon": "mdi:rocket-launch",
+        "priority": 120,
     },
     2: {
         "he": "ירי לא קונבנציונלי",
         "en": "Non-conventional Missiles",
         "icon": "mdi:alert-octagon",
+        "priority": 180,
     },
     3: {
         "he": "רעידת אדמה",
         "en": "Earthquake",
         "icon": "mdi:earth-box",
+        "priority": 110,
     },
     4: {
         "he": "אירוע רדיולוגי",
         "en": "Radiological Event",
         "icon": "mdi:radioactive",
+        "priority": 170,
     },
     5: {
         "he": "צונאמי",
         "en": "Tsunami",
         "icon": "mdi:waves",
+        "priority": 100,
     },
     6: {
         "he": "חדירת כלי טיס עוין",
         "en": "Hostile Aircraft Intrusion",
         "icon": "mdi:airplane-alert",
+        "priority": 130,
     },
     7: {
         "he": "חומרים מסוכנים",
         "en": "Hazardous Materials",
         "icon": "mdi:hazard-lights",
+        "priority": 150,
     },
     8: {
         "he": "אזהרה",
         "en": "Warning",
         "icon": "mdi:alert",
+        "priority": 140,
     },
     10: {
         "he": "עדכון פיקוד העורף",
         "en": "Home Front Command Update",
         "icon": "mdi:information",
+        "priority": 0,
     },
     13: {
         "he": "חדירת מחבלים",
         "en": "Terrorist Infiltration",
         "icon": "mdi:account-alert",
+        "priority": 160,
     },
     # --- Drills (matrix_id + 100) ---
     101: {
         "he": "תרגיל ירי רקטות וטילים",
         "en": "Drill - Rockets and Missiles",
         "icon": "mdi:rocket-launch-outline",
+        "priority": 40,
     },
     102: {
         "he": "תרגיל כללי",
         "en": "Drill - General",
         "icon": "mdi:alert-outline",
+        "priority": 0,
     },
     103: {
         "he": "תרגיל רעידת אדמה",
         "en": "Drill - Earthquake",
         "icon": "mdi:earth-box-minus",
+        "priority": 30,
     },
     104: {
         "he": "תרגיל אירוע רדיולוגי",
         "en": "Drill - Radiological Event",
         "icon": "mdi:radioactive",
+        "priority": 80,
     },
     105: {
         "he": "תרגיל צונאמי",
         "en": "Drill - Tsunami",
         "icon": "mdi:waves-arrow-up",
+        "priority": 20,
     },
     106: {
         "he": "תרגיל חדירת כלי טיס עוין",
         "en": "Drill - Hostile Aircraft",
         "icon": "mdi:airplane-clock",
+        "priority": 50,
     },
     107: {
         "he": "תרגיל חומרים מסוכנים",
         "en": "Drill - Hazardous Materials",
         "icon": "mdi:hazard-lights",
+        "priority": 60,
     },
     109: {
         "he": "תרגיל מסוף",
         "en": "Drill - Console",
         "icon": "mdi:console",
+        "priority": 0,
     },
     110: {
         "he": "תרגיל עדכון",
         "en": "Drill - Update",
         "icon": "mdi:information-outline",
+        "priority": 0,
     },
     113: {
         "he": "תרגיל חדירת מחבלים",
         "en": "Drill - Terrorist Infiltration",
         "icon": "mdi:account-alert-outline",
+        "priority": 70,
     },
 }
 
 # Oref informational alert categories (not real alerts - should not be counted)
 # Event-ended and other updates use matrix_id=10 ("update/flash")
 OREF_CAT_UPDATE = 10
+
+# Event-ended detection: the title always contains this substring.
+# Exact title is usually "האירוע הסתיים" but category-specific variants exist:
+# "ירי רקטות וטילים - האירוע הסתיים", "חדירת כלי טיס עוין - האירוע הסתיים", etc.
 OREF_TITLE_EVENT_ENDED = "האירוע הסתיים"
 
 # Early Warning titles - tracked separately as their own binary sensor

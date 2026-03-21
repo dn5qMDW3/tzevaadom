@@ -1,0 +1,78 @@
+blueprint:
+  name: "Tzeva Adom: TTS Alert Announcement"
+  description: >
+    Announces alert details via TTS when a new alert is detected.
+    Includes the alert type, affected cities, and shelter time.
+  domain: automation
+  input:
+    tts_target:
+      name: Media Player
+      description: The media player to announce on
+      selector:
+        entity:
+          domain: media_player
+    tts_service:
+      name: TTS Service
+      description: The TTS service to use (e.g., tts.google_translate_say)
+      default: tts.speak
+      selector:
+        text:
+    language:
+      name: Language
+      description: Announcement language
+      default: he
+      selector:
+        select:
+          options:
+            - label: Hebrew
+              value: he
+            - label: English
+              value: en
+    skip_drills:
+      name: Skip Drills
+      description: Do not announce drill alerts
+      default: true
+      selector:
+        boolean:
+
+trigger:
+  - platform: event
+    event_type: tzevaadom_alert
+
+condition:
+  - condition: template
+    value_template: >
+      {% if skip_drills %}
+        {{ trigger.event.data.is_drill != true }}
+      {% else %}
+        true
+      {% endif %}
+
+action:
+  - variables:
+      lang: !input language
+      alert_type: >
+        {% if lang == 'he' %}
+          {{ trigger.event.data.category_name_he }}
+        {% else %}
+          {{ trigger.event.data.category_name_en }}
+        {% endif %}
+      cities: "{{ trigger.event.data.cities | join(', ') }}"
+      shelter: "{{ trigger.event.data.get('shelter_time', '') }}"
+      message: >
+        {% if lang == 'he' %}
+          צבע אדום. {{ alert_type }}. {{ cities }}.
+          {% if shelter %}יש לך {{ shelter }} שניות להגיע למרחב המוגן.{% endif %}
+        {% else %}
+          Red Alert. {{ alert_type }}. {{ cities }}.
+          {% if shelter %}You have {{ shelter }} seconds to reach shelter.{% endif %}
+        {% endif %}
+  - service: !input tts_service
+    target:
+      entity_id: !input tts_target
+    data:
+      message: "{{ message }}"
+      language: "{{ lang }}"
+
+mode: queued
+max: 5

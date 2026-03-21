@@ -78,12 +78,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     proxy_url = entry.data.get(CONF_PROXY_URL) or None
     client = create_api_client(session, data_source, proxy_url)
 
-    # Create coordinator
-    coordinator = OrefDataUpdateCoordinator(hass, client, entry)
-
-    # Create definitions manager and schedule updates
+    # Create definitions manager and load stored data
     definitions_manager = DefinitionsManager(hass)
     await definitions_manager.async_load()
+
+    # Create coordinator (needs definitions_manager for shelter time lookups)
+    coordinator = OrefDataUpdateCoordinator(hass, client, entry, definitions_manager)
 
     # Store references
     hass.data[DOMAIN][entry.entry_id] = {
