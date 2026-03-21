@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+from pathlib import Path
+import shutil
 
 from aiohttp import ClientSession
 
@@ -106,6 +108,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_track_time_interval(hass, _update_definitions, timedelta(hours=24))
     )
 
+    # Install bundled automation blueprints
+    await hass.async_add_executor_job(_install_blueprints, hass)
+
     # Register services
     _register_services(hass)
 
@@ -131,6 +136,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _install_blueprints(hass: HomeAssistant) -> None:
+    """Copy bundled blueprints into HA's blueprints directory.
+
+    Only copies if the source is newer or the destination doesn't exist,
+    so user customizations to existing blueprints are not overwritten
+    unless the integration ships an update.
+    """
+    source_dir = Path(__file__).parent / "blueprints" / "automation"
+    if not source_dir.is_dir():
+        return
+
+    dest_dir = Path(hass.config.path("blueprints")) / "automation" / DOMAIN
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    for src_file in source_dir.glob("*.yaml"):
+        dst_file = dest_dir / src_file.name
+        # Only copy if new or updated
+        if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
+            shutil.copy2(src_file, dst_file)
+            _LOGGER.info("Installed blueprint: %s", src_file.name)
 
 
 def _register_services(hass: HomeAssistant) -> None:
