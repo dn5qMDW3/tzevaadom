@@ -28,10 +28,6 @@ ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 # How often to refresh history from the API (seconds)
 HISTORY_REFRESH_INTERVAL = 5 * 60  # 5 minutes
 
-# Maximum history entries to keep in attributes (prevents HA database bloat).
-# Oref ASPX endpoint can return up to 3000 entries.
-MAX_HISTORY_ENTRIES = 500
-
 # Group alerts within this window into one incident (seconds)
 INCIDENT_GROUP_WINDOW = 120  # 2 minutes
 
@@ -226,7 +222,7 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, RestoreEntity, SensorEntity)
             # Restore the history list from attributes
             restored_alerts = last_state.attributes.get("alerts")
             if isinstance(restored_alerts, list) and restored_alerts:
-                self._api_history = restored_alerts[:MAX_HISTORY_ENTRIES]
+                self._api_history = restored_alerts
                 _LOGGER.debug(
                     "Restored %d history entries (state=%d)",
                     len(self._api_history),
@@ -300,10 +296,6 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, RestoreEntity, SensorEntity)
                     pass
 
             result.append(entry)
-
-            # Cap history size to prevent HA database bloat
-            if len(result) >= MAX_HISTORY_ENTRIES:
-                break
 
         return result
 

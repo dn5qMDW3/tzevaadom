@@ -1,4 +1,4 @@
-name: Update Oref Definitions
+name: Update Area Definitions
 
 on:
   schedule:
@@ -38,10 +38,10 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "chore: update Oref area definitions"
-          title: "Update Oref area definitions"
+          commit-message: "chore: update area definitions"
+          title: "Update area definitions"
           body: |
-            Automated update of Oref area/district definitions.
+            Automated update of area/district definitions from Tzofar API.
             Please review the changes to ensure correctness.
           branch: auto/update-definitions
           delete-branch: true
