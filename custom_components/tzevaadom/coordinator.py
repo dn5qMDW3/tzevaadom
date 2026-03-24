@@ -126,6 +126,14 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
 
         return True
 
+    def _city_matches_filter(self, city: str) -> bool:
+        """Check if a single city matches the configured location filters."""
+        if self._selected_cities:
+            return city in self._selected_cities
+        if self._selected_areas:
+            return city in self._selected_areas
+        return True  # No filter = match all
+
     def _enrich_alert(self, alert: OrefAlert) -> OrefAlert:
         """Add shelter_time from definitions to an alert."""
         shelter = self.definitions_manager.get_min_migun_time(alert.data)
@@ -260,11 +268,18 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
                     len(cleared),
                     cleared[:10],
                 )
-                # Fire all-clear event for automations
-                self.hass.bus.async_fire(
-                    EVENT_TZEVAADOM_ALL_CLEAR,
-                    {"cities": cleared, "cities_count": len(cleared)},
-                )
+                # Fire all-clear event only for cities matching user's filters
+                filtered_cleared = [
+                    c for c in cleared if self._city_matches_filter(c)
+                ]
+                if filtered_cleared:
+                    self.hass.bus.async_fire(
+                        EVENT_TZEVAADOM_ALL_CLEAR,
+                        {
+                            "cities": filtered_cleared,
+                            "cities_count": len(filtered_cleared),
+                        },
+                    )
             # Keep only last 50 duration records
             if len(self._recent_durations) > 50:
                 self._recent_durations = self._recent_durations[-50:]
