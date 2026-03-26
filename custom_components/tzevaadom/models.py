@@ -66,8 +66,12 @@ class OrefAlert:
 
     @property
     def is_early_warning(self) -> bool:
-        """Return True if this is an early warning alert."""
-        return self.title in EARLY_WARNING_TITLES
+        """Return True if this is an early warning alert.
+
+        Uses 'any(...in...)' rather than set membership to catch prefixed
+        variants like "מבזק פיקוד העורף - התרעה מקדימה".
+        """
+        return any(ew_title in self.title for ew_title in EARLY_WARNING_TITLES)
 
     @property
     def is_event_ended(self) -> bool:

@@ -1,4 +1,4 @@
-name: Version Bump & Tag
+name: Version Bump & Release
 
 on:
   workflow_dispatch:
@@ -15,9 +15,12 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   bump:
-    name: Bump version and create tag
+    name: Bump version, validate & release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -64,3 +67,17 @@ jobs:
           git commit -m "chore: bump version to ${{ steps.new.outputs.version }}"
           git tag "v${{ steps.new.outputs.version }}"
           git push origin main --tags
+
+      - uses: home-assistant/actions/hassfest@master
+
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.new.outputs.version }}
+          generate_release_notes: true
+          files: |
+            custom_components/tzevaadom/manifest.json
