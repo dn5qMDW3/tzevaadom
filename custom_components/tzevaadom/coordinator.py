@@ -108,9 +108,12 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
 
     def filter_alert(self, alert: OrefAlert) -> bool:
         """Check if an alert matches the configured filters."""
-        # If no categories selected, accept all
-        if self._selected_categories and alert.cat not in self._selected_categories:
-            return False
+        # Early warnings and event-ended are exempt from category filtering —
+        # they are cross-cutting notifications about the user's area, not a
+        # specific alert type. Only apply location filters to them.
+        if not alert.is_early_warning and not alert.is_event_ended:
+            if self._selected_categories and alert.cat not in self._selected_categories:
+                return False
 
         # City filter takes precedence: if specific cities are selected,
         # match only those cities (most granular)

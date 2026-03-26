@@ -153,10 +153,10 @@
         "name": "Alert Type (Nationwide)"
       },
       "alerts_history": {
-        "name": "Alerts History"
+        "name": "Alerts History (24H)"
       },
       "alerts_history_nationwide": {
-        "name": "Alerts History (Nationwide)"
+        "name": "Alerts History (24H, Nationwide)"
       }
     }
   }
