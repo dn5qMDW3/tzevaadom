@@ -31,6 +31,10 @@ HISTORY_REFRESH_INTERVAL = 5 * 60  # 5 minutes
 # Group alerts within this window into one incident (seconds)
 INCIDENT_GROUP_WINDOW = 120  # 2 minutes
 
+# Max entries stored in state attributes to stay under HA's 16KB recorder limit
+MAX_HISTORY_ATTR_ALERTS = 30
+MAX_HISTORY_ATTR_INCIDENTS = 20
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -402,6 +406,7 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, RestoreEntity, SensorEntity)
             "incidents_today": incidents_today,
             "total": len(self._api_history),
             "last_alert": self._api_history[0] if self._api_history else None,
-            "incidents": incidents,
-            "alerts": self._api_history,
+            "incidents": incidents[:MAX_HISTORY_ATTR_INCIDENTS],
+            "incidents_total": len(incidents),
+            "alerts": self._api_history[:MAX_HISTORY_ATTR_ALERTS],
         }

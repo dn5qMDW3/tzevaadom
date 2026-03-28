@@ -13,3 +13,8 @@ build/
 *.swp
 *.swo
 .DS_Store
+tests/
+monitor/
+monitor/data/
+monitor-data/
+*.db

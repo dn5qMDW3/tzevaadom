@@ -142,7 +142,7 @@ class OrefApiClient(AlertApiClient):
     async def get_alerts(self) -> list[dict[str, Any]]:
         """Fetch current active alerts."""
         text = await self._fetch(OREF_ALERTS_URL)
-        if not text or text == "null":
+        if not text or text.strip("\x00") in ("", "null"):
             return []
         try:
             data = json.loads(text)
