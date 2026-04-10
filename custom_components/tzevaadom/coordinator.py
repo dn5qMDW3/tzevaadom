@@ -137,6 +137,26 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
             return city in self._selected_areas
         return True  # No filter = match all
 
+    def narrow_alert_to_filter(self, alert: OrefAlert) -> OrefAlert:
+        """Return a copy of the alert with only the cities matching the user's filter.
+
+        This prevents flooding the database and notifications with cities
+        the user doesn't care about when an alert covers a large region.
+        """
+        matched = [c for c in alert.data if self._city_matches_filter(c)]
+        if len(matched) == len(alert.data):
+            return alert  # All cities match, no copy needed
+        narrowed = OrefAlert(
+            id=alert.id,
+            cat=alert.cat,
+            title=alert.title,
+            desc=alert.desc,
+            data=matched,
+        )
+        if alert.shelter_time is not None:
+            narrowed.shelter_time = alert.shelter_time
+        return narrowed
+
     def _enrich_alert(self, alert: OrefAlert) -> OrefAlert:
         """Add shelter_time from definitions to an alert."""
         shelter = self.definitions_manager.get_min_migun_time(alert.data)
@@ -315,11 +335,17 @@ class OrefDataUpdateCoordinator(DataUpdateCoordinator[OrefAlertData]):
         # Sort by priority (most severe first)
         real_alerts = self._sort_by_priority(real_alerts)
 
-        # Apply location/category filters
-        filtered_alerts = [a for a in real_alerts if self.filter_alert(a)]
+        # Apply location/category filters and narrow to matched cities only
+        filtered_alerts = [
+            self._enrich_alert(self.narrow_alert_to_filter(a))
+            for a in real_alerts
+            if self.filter_alert(a)
+        ]
 
         filtered_early_warnings = [
-            a for a in early_warnings if self.filter_alert(a)
+            self._enrich_alert(self.narrow_alert_to_filter(a))
+            for a in early_warnings
+            if self.filter_alert(a)
         ]
 
         if filtered_alerts:

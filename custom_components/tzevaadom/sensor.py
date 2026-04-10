@@ -269,8 +269,11 @@ class TzevaadomAlertsHistorySensor(TzevaadomEntity, RestoreEntity, SensorEntity)
                 continue
 
             # For filtered variant, apply user's location/category filters
-            if not self._nationwide and not self.coordinator.filter_alert(alert):
-                continue
+            # and narrow cities to only those matching the user's selection
+            if not self._nationwide:
+                if not self.coordinator.filter_alert(alert):
+                    continue
+                alert = self.coordinator.narrow_alert_to_filter(alert)
 
             ts = item.get("timestamp", 0)
 
